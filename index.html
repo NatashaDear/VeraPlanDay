@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Пульт Мамы: Контроль Веры (ИИ)</title>
+    <!-- Подключаем официальную библиотеку Supabase напрямую через интернет -->
+    <script src="https://jsdelivr.net"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 15px; margin: 0; }
         h2 { color: #00ffb3; text-align: center; font-size: 18px; margin-bottom: 20px; }
@@ -22,10 +24,10 @@
     <div id="log-box">Ожидание загрузки данных...</div>
 
     <script>
-        // Используем прокси-обходчик CORS для беспрепятственного чтения таблиц
-        const base_url = "https://supabase.co";
-        const url = "https://herokuapp.com" + base_url;
-        const key = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
+        // Инициализируем официальный клиент Supabase
+        const SUPABASE_URL = "https://supabase.co";
+        const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const schoolChart = {
             0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
@@ -55,12 +57,19 @@
 
         async function loadTasks() {
             try {
-                let response = await fetch(url, { headers: { "apikey": key, "Authorization": `Bearer ${key}` } });
-                let records = await response.json();
+                // Делаем официальный защищенный запрос к вашей таблице tasks
+                const { data: records, error } = await _supabase
+                    .from('tasks')
+                    .select('*')
+                    .order('id', { ascending: false })
+                    .limit(3);
+
+                if (error) throw error;
+
                 let logBox = document.getElementById("log-box");
                 logBox.innerHTML = "";
 
-                if (records.length === 0) {
+                if (!records || records.length === 0) {
                     logBox.innerHTML = "Сигналов от Веры пока нет.";
                     return;
                 }
@@ -81,9 +90,11 @@
                 });
             } catch (e) {
                 console.error(e);
-                document.getElementById("log-box").innerHTML = "Ошибка чтения данных. Пожалуйста, активируйте доступ на ://herokuapp.com";
+                document.getElementById("log-box").innerHTML = "Ошибка подключения к облаку. Проверьте настройки сети.";
             }
         }
+
+        // Автозапуск
         loadTasks();
         setInterval(loadTasks, 10000);
     </script>
