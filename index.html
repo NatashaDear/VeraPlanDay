@@ -22,7 +22,9 @@
     <div id="log-box">Ожидание загрузки данных...</div>
 
     <script>
-        const url = "https://supabase.co";
+        // Используем прокси-обходчик CORS для беспрепятственного чтения таблиц
+        const base_url = "https://supabase.co";
+        const url = "https://herokuapp.com" + base_url;
         const key = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 
         const schoolChart = {
@@ -40,7 +42,6 @@
                 let neededBooks = lessons.filter(l => !l.includes("*")).length;
                 return `🎒 Портфель проверен.\nУчебников на завтра должно быть: ${neededBooks} шт.\nСканирование корешков: Успешно! Мусора нет.`;
             } else if (title.toLowerCase().includes("одежду")) {
-                // ЖЕЛЕЗОБЕТОННАЯ ИСПРАВЛЕННАЯ ЛОГИКА: 1 - вторник, 3 - четверг
                 if (tomorrow === 1 || tomorrow === 3) {
                     return `👟 Внимание! Завтра ФИЗКУЛЬТУРА.\nИИ проверил форму: кроссовки, штаны и футболка на месте!`;
                 } else {
@@ -80,6 +81,7 @@
                 });
             } catch (e) {
                 console.error(e);
+                document.getElementById("log-box").innerHTML = "Ошибка чтения данных. Пожалуйста, активируйте доступ на ://herokuapp.com";
             }
         }
         loadTasks();
