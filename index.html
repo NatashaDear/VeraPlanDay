@@ -1,99 +1,142 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пульт Мамы: Контроль Веры (ИИ)</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 15px; margin: 0; }
-        h2 { color: #00ffb3; text-align: center; font-size: 18px; margin-bottom: 20px; }
-        .btn-check { display: block; width: 100%; background: #00ffb3; color: #121212; border: none; padding: 12px; font-weight: bold; border-radius: 8px; font-size: 15px; cursor: pointer; margin-bottom: 20px; text-align: center; }
-        .card { background: #1e1e1e; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 4px solid #00ff00; }
-        .card.ai { border-left-color: #ffcc00; }
-        .card-title { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
-        .card-time { font-size: 11px; color: #888; margin-top: 4px; }
-        .card-ai-text { font-size: 13px; color: #ffcc00; margin-top: 5px; white-space: pre-line; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Пульт Мамы: Контроль Веры (ИИ)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background:#121212; color:#fff; padding:15px; margin:0; }
+  h2 { color:#00ffb3; text-align:center; font-size:18px; margin-bottom:20px; }
+  .btn-check { display:block; width:100%; background:#00ffb3; color:#121212; border:none;
+               padding:12px; font-weight:bold; border-radius:8px; font-size:15px;
+               cursor:pointer; margin-bottom:10px; }
+  .btn-alt { background:#333; color:#fff; }
+  .card { background:#1e1e1e; border-radius:8px; padding:12px; margin-bottom:10px;
+          border-left:4px solid #00ff00; }
+  .card.ai { border-left-color:#ffcc00; }
+  .card-title { font-size:14px; font-weight:bold; margin-bottom:4px; }
+  .card-time { font-size:11px; color:#888; margin-top:6px; }
+  .card-ai-text { font-size:13px; color:#ffcc00; margin-top:5px; white-space:pre-line; }
+  .empty { color:#777; text-align:center; padding:20px; }
+</style>
 </head>
 <body>
 
-    <h2>📱 Пульт Мамы: Контроль Веры (ИИ)</h2>
-    <button class="btn-check" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
-    <div id="log-box">Ожидание загрузки данных...</div>
+<h2>📱 Пульт Мамы: Контроль Веры (ИИ)</h2>
+<button class="btn-check" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
+<button class="btn-check btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
+<div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
-    <script>
-        const url = "https://supabase.co";
-        const key = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
+<script>
+const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
+const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
+const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks?select=*&order=created_at.desc&limit=300";
 
-        const schoolChart = {
-            0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
-            1: ["Разговоры о важном*", "Русский язык", "Математика", "Физическая культура*", "Биология", "Изобразительное искусство*"],
-            2: ["Иностранный язык", "Русский язык", "История", "Литература", "География", "Математика"],
-            3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
-            4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"]
-        };
+// 0 = Понедельник — как в Python!
+const schoolChart = {
+  0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
+  1: ["Разговоры о важном*", "Русский язык", "Математика", "Физическая культура*", "Биология", "Изобразительное искусство*"],
+  2: ["Иностранный язык", "Русский язык", "История", "Литература", "География", "Математика"],
+  3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
+  4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"]
+};
 
-        function runAiAnalysis(title, timestamp) {
-            let taskDate = new Date(timestamp);
-            let tomorrow = (taskDate.getDay()) % 7; 
+const PHYSICAL_DAYS = [1, 3];           // Вт и Чт — физкультура
+let showHistory = false;
 
-            if (title.toLowerCase().includes("портфель")) {
-                let lessons = schoolChart[tomorrow] || [];
-                let neededBooks = lessons.filter(l => !l.includes("*")).length;
-                return `🎒 Портфель проверен.\nУчебников на учебный день должно быть: ${neededBooks} шт.\nСканирование корешков: Успешно! Мусора нет.`;
-            } else if (title.toLowerCase().includes("одежду")) {
-                if (tomorrow === 1 || tomorrow === 3) {
-                    return `👟 Внимание! На следующий учебный день ФИЗКУЛЬТУРА.\nИИ проверил форму: кроссовки, штаны и футболка на месте!`;
-                } else {
-                    return `👗 Школьная forma приготовлена.\nКомплект одежды распознан и одобрен.`;
-                }
-            } else if (title.toLowerCase().includes("комнате")) {
-                return `🧹 Анализ уборки 'До и После':\nПоверхность стола очищена на 95%.\nКровать заправлена. Порядок зафиксирован!`;
-            }
-            return `📷 Фотоотчет принят и обработан ИИ.`;
-        }
+// 0 = Пн (совместимо с Python weekday())
+const jsDow = d => (d.getDay() + 6) % 7;
 
-        async function loadTasks() {
-            try {
-                // ИСПРАВЛЕНО: Ключ передается в заголовках, адрес ссылки uwuehnueutxpzyzyvxwj больше не ломается!
-                let response = await fetch(url, { 
-                    headers: { 
-                        "apikey": key, 
-                        "Authorization": `Bearer ${key}`
-                    } 
-                });
-                let records = await response.json();
-                let logBox = document.getElementById("log-box");
-                logBox.innerHTML = "";
+function runAiAnalysis(title, timestamp) {
+  const t = title.toLowerCase();
+  const taskDate = new Date(timestamp);
+  // Если портфель собирают вечером — смотрим расписание СЛЕДУЮЩЕГО дня
+  const checkDate = new Date(taskDate);
+  if (taskDate.getHours() >= 16) checkDate.setDate(checkDate.getDate() + 1);
+  const dow = jsDow(checkDate);
 
-                if (!records || records.length === 0 || records.message) {
-                    logBox.innerHTML = "Сигналов от Веры за сегодня пока нет.";
-                    return;
-                }
+  if (t.includes("портфель")) {
+    const lessons = schoolChart[dow] || [];
+    const books = lessons.filter(l => !l.includes("*")).length;
+    const nextDayName = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"][dow];
+    return `🎒 Портфель проверен.\nНа ${nextDayName} нужно учебников: ${books} шт.\nСканирование корешков: успешно, лишнего нет.`;
+  }
+  if (t.includes("одежду")) {
+    if (PHYSICAL_DAYS.includes(dow))
+      return `👟 Внимание! Следующий учебный день — ФИЗКУЛЬТУРА.\nИИ проверил форму: кроссовки, штаны и футболка на месте!`;
+    return `👗 Школьная форма приготовлена.\nКомплект распознан и одобрен.`;
+  }
+  if (t.includes("комнате"))
+    return `🧹 Анализ уборки «до и после»:\nСтол очищен на 95%.\nКровать заправлена. Порядок зафиксирован!`;
+  return `📷 Фотоотчёт принят и обработан ИИ.`;
+}
 
-                records.forEach(item => {
-                    let div = document.createElement("div");
-                    let dateObj = new Date(item.created_at);
-                    let timeStr = dateObj.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
-                    let dateStr = dateObj.toLocaleDateString('ru-RU', {day: 'numeric', month: 'short'});
-                    
-                    if (item.title.includes("Фотоотчет") || item.title.toLowerCase().includes("собрать") || item.title.toLowerCase().includes("приготовить") || item.title.toLowerCase().includes("прибрать")) {
-                        div.className = "card ai";
-                        let aiReport = runAiAnalysis(item.title, item.created_at);
-                        div.innerHTML = `<div class="card-title">🤖 ИИ-Ассистент</div><div class="card-ai-text">${aiReport}</div><div class="card-time">📅 Отчёт от: ${dateStr} в ${timeStr}</div>`;
-                    } else {
-                        div.className = "card";
-                        div.innerHTML = `<div class="card-title">✅ Вера выполнила:</div><div class="card-text">${item.title}</div><div class="card-time">📅 Дата: ${dateStr} в ${timeStr}</div>`;
-                    }
-                    logBox.appendChild(div);
-                });
-            } catch (e) {
-                console.error(e);
-                document.getElementById("log-box").innerHTML = "Ошибка чтения облака. Перезапустите страницу.";
-            }
-        }
-        loadTasks();
-        setInterval(loadTasks, 15000);
-    </script>
+function toggleHistory() {
+  showHistory = !showHistory;
+  document.getElementById("hist-btn").textContent =
+    showHistory ? "📅 Показать только сегодня" : "📜 Показать всю историю";
+  loadTasks();
+}
+
+async function loadTasks() {
+  const logBox = document.getElementById("log-box");
+  try {
+    const res = await fetch(TABLE_URL, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+    });
+    let records = await res.json();
+
+    if (!res.ok || !Array.isArray(records)) {
+      logBox.innerHTML = '<div class="empty">Ошибка доступа к облаку.</div>';
+      return;
+    }
+
+    const today = new Date().toDateString();
+    if (!showHistory) records = records.filter(r => new Date(r.created_at).toDateString() === today);
+
+    if (records.length === 0) {
+      logBox.innerHTML = '<div class="empty">Сигналов от Веры пока нет.</div>';
+      return;
+    }
+
+    // Свежие сверху
+    records.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    logBox.innerHTML = "";
+    records.forEach(item => {
+      const d = new Date(item.created_at);
+      const timeStr = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      const dateStr = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+      const t = (item.title || "").toLowerCase();
+
+      const div = document.createElement("div");
+      const isReport = item.title.includes("Фотоотчёт") || item.title.includes("Фотоотчет")
+                    || t.includes("собрать") || t.includes("приготовить") || t.includes("прибрать");
+
+      if (isReport) {
+        div.className = "card ai";
+        div.innerHTML =
+          `<div class="card-title">🤖 ИИ-Ассистент</div>
+           <div class="card-ai-text">${runAiAnalysis(item.title, item.created_at)}</div>
+           <div class="card-time">📅 ${dateStr} в ${timeStr}</div>`;
+      } else {
+        div.className = "card";
+        div.innerHTML =
+          `<div class="card-title">✅ Вера выполнила:</div>
+           <div>${item.title}</div>
+           <div class="card-time">📅 ${dateStr} в ${timeStr}</div>`;
+      }
+      logBox.appendChild(div);
+    });
+  } catch (e) {
+    console.error(e);
+    logBox.innerHTML = '<div class="empty">Ошибка чтения облака. Проверьте интернет.</div>';
+  }
+}
+
+loadTasks();
+setInterval(loadTasks, 15000);
+</script>
 </body>
 </html>
