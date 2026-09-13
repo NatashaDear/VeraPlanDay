@@ -7,26 +7,43 @@
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
          background:#121212; color:#fff; padding:15px; margin:0; }
-  h2 { color:#00ffb3; text-align:center; font-size:18px; margin-bottom:20px; }
+  h2 { color:#00ffb3; text-align:center; font-size:18px; margin-bottom:16px; }
   .btn { display:block; width:100%; background:#00ffb3; color:#121212; border:none;
          padding:12px; font-weight:bold; border-radius:8px; font-size:15px;
          cursor:pointer; margin-bottom:10px; }
   .btn-alt { background:#333; color:#fff; }
-  .control { background:#0e2b22; border-radius:8px; padding:14px;
-             margin-bottom:15px; border-left:4px solid #00ffb3; }
-  .control-title { font-size:15px; font-weight:bold; color:#00ffb3; margin-bottom:8px; }
-  .control-line { font-size:13px; margin-bottom:4px; }
-  .control-miss { color:#ff8080; font-size:13px; margin-top:6px; }
-  .card { background:#1e1e1e; border-radius:8px; padding:12px; margin-bottom:10px;
-          border-left:4px solid #00ff00; }
-  .card.ai { border-left-color:#ffcc00; }
-  .card.flute { border-left-color:#00b3ff; }
-  .card.leftover { border-left-color:#ff8800; }
-  .card-title { font-size:14px; font-weight:bold; margin-bottom:4px; }
-  .card-time { font-size:11px; color:#888; margin-top:6px; }
-  .card-ai-text { font-size:13px; color:#ffcc00; margin-top:5px; white-space:pre-line; }
+
+  .day-head { display:flex; justify-content:space-between; align-items:baseline;
+              margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #00ffb3; }
+  .day-name { font-size:15px; font-weight:bold; color:#00ffb3; }
+  .day-progress { font-size:12px; color:#888; }
+
+  .section-title { font-size:12px; color:#888; text-transform:uppercase;
+                   letter-spacing:0.5px; margin:16px 0 8px 0; }
+
+  .task-row { display:flex; gap:8px; padding:8px 0;
+              border-bottom:1px solid #262626; align-items:flex-start; }
+  .task-row:last-child { border-bottom:none; }
+  .task-status { flex:0 0 18px; width:18px; height:18px; margin-top:2px;
+                 border:2px solid #444; border-radius:4px;
+                 display:flex; align-items:center; justify-content:center;
+                 font-size:13px; color:transparent; }
+  .task-status.done { background:#00ffb3; border-color:#00ffb3; color:#121212; }
+  .task-content { flex:1; min-width:0; }
+  .task-title { font-size:13px; color:#ddd; word-break:break-word; }
+  .task-title.done { color:#888; }
+  .task-time { flex:0 0 44px; font-size:12px; color:#888; text-align:right;
+               padding-top:2px; font-variant-numeric:tabular-nums; }
+
+  .task-ai { font-size:12px; color:#ffcc00; margin-top:4px;
+             white-space:pre-line; line-height:1.4; }
+
+  .task-player { margin-top:6px; }
+  .frag { display:flex; align-items:center; gap:6px; font-size:11px;
+          color:#00b3ff; margin-top:3px; }
+  .frag audio { flex:1; height:28px; }
+
   .empty { color:#777; text-align:center; padding:20px; }
-  audio { width:100%; height:32px; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -34,104 +51,470 @@
 <h2>📱 Пульт Мамы: Контроль Веры</h2>
 <button class="btn" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
 <button class="btn btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
-<div id="control-box"></div>
 <div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
 <script>
+// ============================================================
+// КОНФИГУРАЦИЯ — то же, что в aimoto_child.py
+// ============================================================
+
 const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks?select=*&order=created_at.desc&limit=300";
 
-// 0 = Понедельник — как в Python
-const schoolChart = {
-  0: ["Математика","История","Русский язык","Литература","Музыка*"],
-  1: ["Разговоры о важном*","Русский язык","Математика","Физическая культура*","Биология","Изобразительное искусство*"],
-  2: ["Иностранный язык","Русский язык","История","Литература","География","Математика"],
-  3: ["Труд*","Труд*","Математика","Физическая культура*","Русский язык"],
-  4: ["История","Математика","Русский язык","Литература","Музыка*"],
+const SCHOOL_CHART = {
+  0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
+  1: ["Разговоры о важном*", "Русский язык", "Математика",
+      "Физическая культура*", "Биология", "Изобразительное искусство*"],
+  2: ["Иностранный язык", "Русский язык", "История",
+      "Литература", "География", "Математика"],
+  3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
+  4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"],
   5: [], 6: []
 };
 
+const MUSIC_CHART = {
+  0: ["🪈 Специальность (17:20)", "🎹 Фортепиано (18:05)"],
+  1: ["🎼 Муз. литература (14:45)"],
+  2: [],
+  3: ["👥 Ансамбль (17:00)", "🪈 Специальность (17:45)"],
+  4: [],
+  5: ["🎻 Оркестр (15:00)"],
+  6: ["📝 Сольфеджио (11:00)", "🎤 Хор (13:35)"]
+};
+
+const CANCEL_KEYWORDS = ["Специальность", "Ансамбль"];
+
+const FLEXIBLE_MUSIC = [
+  ["📖 Муз. литература (30 мин)", 0],
+  ["🎻 Оркестр: партии (40 мин)", 2],
+  ["🎻 Оркестр: партии (40 мин)", 4],
+  ["📝 Сольфеджио (30 мин)", 5],
+];
+
+const OLYMPIADS = {
+  "2026-09-15": "История",
+  "2026-09-17": "Русский язык",
+  "2026-09-28": "Английский язык",
+  "2026-10-08": "Биология",
+  "2026-10-14": "Математика",
+  "2026-10-20": "География"
+};
+
 const WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
+const MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+
 let showHistory = false;
 
-// 0 = Пн, как в Python weekday()
+// ============================================================
+// ХЕЛПЕРЫ
+// ============================================================
+
 const jsDow = d => (d.getDay() + 6) % 7;
 
-function nextSchoolDate(fromDate) {
-  let d = new Date(fromDate);
+function nextSchoolDayDow(fromDow) {
+  let d = fromDow;
   for (let i = 0; i < 7; i++) {
-    d.setDate(d.getDate() + 1);
-    const dow = jsDow(d);
-    if (schoolChart[dow] && schoolChart[dow].length) return new Date(d);
+    d = (d + 1) % 7;
+    if (SCHOOL_CHART[d] && SCHOOL_CHART[d].length) return d;
   }
   return null;
 }
 
 function homeworkSubjectsFor(dow) {
-  return (schoolChart[dow] || []).filter(s => !s.includes("*"));
+  return (SCHOOL_CHART[dow] || []).filter(s => !s.includes("*"));
 }
 
-function runAiAnalysis(title, timestamp) {
-  const t = title.toLowerCase();
-  const taskDate = new Date(timestamp);
-  const tmr = nextSchoolDate(taskDate);
-  if (!tmr) return "🎒 Отчёт принят.";
+function dayHasCancelLesson(dow) {
+  const lessons = MUSIC_CHART[dow] || [];
+  return lessons.some(l => CANCEL_KEYWORDS.some(k => l.includes(k)));
+}
 
+function fluteNeeded(dow) { return !dayHasCancelLesson(dow); }
+function pianoNeeded(dow) { return !dayHasCancelLesson(dow); }
+
+function daysFromToday(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const oDate = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((oDate - today) / 86400000);
+}
+
+function dayKey(d) {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${x.getMonth()+1}-${x.getDate()}`;
+}
+
+function dayLabel(d) {
+  const x = new Date(d);
+  const today = new Date();
+  if (dayKey(x) === dayKey(today)) return "Сегодня";
+  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  if (dayKey(x) === dayKey(yest)) return "Вчера";
+  return WEEKDAYS[jsDow(x)];
+}
+
+function timeStr(iso) {
+  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ============================================================
+// ПОСТРОЕНИЕ ПЛАНА ДНЯ (зеркало aimoto_child.py)
+// ============================================================
+
+function buildTodayPlan(date) {
+  const dow = jsDow(date);
+  const plan = [];
+
+  // Олимпиады
+  for (const [dateStr, name] of Object.entries(OLYMPIADS)) {
+    const delta = daysFromToday(dateStr);
+    if (delta === 1 || delta === 2) {
+      if (name === "История") {
+        plan.push({ text: "🎮 Игра: Машина времени (60 мин)", kind: "game" });
+      } else {
+        plan.push({ text: `🏆 Олимпиада: ${name} (40 мин)`, kind: "study" });
+      }
+    }
+  }
+
+  // Домашка на следующий учебный день
+  const nextDow = nextSchoolDayDow(dow);
+  if (nextDow !== null) {
+    for (const subj of homeworkSubjectsFor(nextDow)) {
+      plan.push({ text: `📚 Домашка: ${subj}`, kind: "study" });
+    }
+  }
+
+  // Флейта, фортепиано
+  if (fluteNeeded(dow)) plan.push({ text: "🎵 Флейта (40 мин)", kind: "flute" });
+  if (pianoNeeded(dow)) plan.push({ text: "🎹 Фортепиано (20 мин)", kind: "study" });
+
+  // Гибкая музыка
+  for (const [name, dayIdx] of FLEXIBLE_MUSIC) {
+    if (dayIdx === dow) plan.push({ text: name, kind: "study" });
+  }
+
+  // Базовые дела
+  plan.push({ text: "🎒 Собрать портфель", kind: "photo" });
+  plan.push({ text: "👗 Приготовить одежду", kind: "photo" });
+  plan.push({ text: "🧹 Прибрать в комнате", kind: "photo" });
+
+  return plan;
+}
+
+function buildTodayLessons(date) {
+  const dow = jsDow(date);
+  const lessons = MUSIC_CHART[dow] || [];
+  const out = [];
+  for (const l of lessons) {
+    const m = l.match(/\S+\s+(.+?)\s+\((\d{1,2}):(\d{2})\)/);
+    if (m) {
+      out.push({
+        text: l,
+        name: m[1].trim(),
+        time: `${m[2].padStart(2, "0")}:${m[3]}`
+      });
+    }
+  }
+  return out;
+}
+
+// ============================================================
+// СОПОСТАВЛЕНИЕ ПЛАНА С ЗАПИСЯМИ
+// ============================================================
+
+const EMOJIS_TO_STRIP = [
+  "📚","🎒","👗","🧹","🎵","🏆","🎹","📝","📖","🎻","🎮","📸","↪",
+  "🎼","👥","🪈","🎤"
+];
+
+function cleanTitle(s) {
+  let out = s || "";
+  for (const e of EMOJIS_TO_STRIP) out = out.split(e).join("");
+  out = out.replace(/\s+/g, " ").trim();
+  out = out.replace(/\s*\(\d+\s*мин\)\s*$/, "").trim();
+  return out;
+}
+
+function stripHvost(t) {
+  return t.startsWith("Хвост: ") ? t.substring(7) : t;
+}
+
+function findRecordForPlan(planItem, records) {
+  const key = cleanTitle(planItem.text);
+  if (!key) return null;
+
+  // Точное совпадение
+  for (const r of records) {
+    const rc = cleanTitle(stripHvost(r.title || ""));
+    if (rc === key) return r;
+  }
+  // Подстрока
+  for (const r of records) {
+    const rc = cleanTitle(stripHvost(r.title || ""));
+    if (rc.includes(key) || key.includes(rc)) return r;
+  }
+  return null;
+}
+
+function findRecordForLesson(lesson, records) {
+  const key = `${lesson.name} (${lesson.time})`;
+  for (const r of records) {
+    if ((r.title || "").includes(key)) return r;
+  }
+  return null;
+}
+
+// ============================================================
+// ИИ-АНАЛИЗ ФОТООТЧЁТОВ
+// ============================================================
+
+function runAiAnalysis(title, timestamp) {
+  const t = (title || "").toLowerCase();
+  const tmr = (() => {
+    const d = new Date(timestamp);
+    for (let i = 0; i < 7; i++) {
+      d.setDate(d.getDate() + 1);
+      if (SCHOOL_CHART[jsDow(d)] && SCHOOL_CHART[jsDow(d)].length) return new Date(d);
+    }
+    return null;
+  })();
+  if (!tmr) return "Отчёт принят.";
   const dow = jsDow(tmr);
   const subjects = homeworkSubjectsFor(dow);
 
   if (t.includes("портфель")) {
-    return `🎒 Портфель на ${WEEKDAYS[dow]}.\n` +
-           `Учебников должно быть: ${subjects.length} шт.\n` +
-           `Список: ${subjects.join(", ")}.`;
+    return `🎒 Портфель на ${WEEKDAYS[dow]}.\nУчебников: ${subjects.length} — ${subjects.join(", ")}.`;
   }
-  if (t.includes("одежду") || t.includes("одежд")) {
-    const hasPE = (schoolChart[dow] || []).some(s => s.toLowerCase().includes("физ"));
-    if (hasPE) return `👟 Завтра ФИЗКУЛЬТУРА. Проверьте форму: кроссовки, штаны, футболка.`;
-    return `👗 Школьная форма на ${WEEKDAYS[dow]} заявлена.`;
+  if (t.includes("одежд")) {
+    const hasPE = (SCHOOL_CHART[dow] || []).some(s => s.toLowerCase().includes("физ"));
+    return hasPE ? "👟 Завтра ФИЗКУЛЬТУРА — проверить форму."
+                 : `👗 Форма на ${WEEKDAYS[dow]} заявлена.`;
   }
-  if (t.includes("комнат")) {
-    return `🧹 Уборка заявлена Верой. Отчёт принят.`;
-  }
+  if (t.includes("комнат")) return "🧹 Уборка заявлена Верой.";
   return "📷 Отчёт принят.";
 }
+
+// ============================================================
+// ОТРИСОВКА
+// ============================================================
+
+function makeStatus(done) {
+  const el = document.createElement("div");
+  el.className = "task-status" + (done ? " done" : "");
+  el.textContent = "✓";
+  return el;
+}
+
+function buildPlanRow(planItem, record) {
+  const row = document.createElement("div");
+  row.className = "task-row";
+
+  const done = !!record;
+  row.appendChild(makeStatus(done));
+
+  const content = document.createElement("div");
+  content.className = "task-content";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "task-title" + (done ? " done" : "");
+  titleEl.textContent = planItem.text;
+  content.appendChild(titleEl);
+
+  // Плеер для флейты
+  if (planItem.kind === "flute" && record) {
+    const sidMatch = (record.title || "").match(/sid=(\d+_\d+)/);
+    const fragMatch = (record.title || "").match(/(\d+)\s+фрагмент/);
+    if (sidMatch && fragMatch) {
+      const sid = sidMatch[1];
+      const n = parseInt(fragMatch[1]);
+      const player = document.createElement("div");
+      player.className = "task-player";
+      for (let i = 1; i <= n; i++) {
+        const fname = `frag_${String(i).padStart(2, "0")}.flac`;
+        const url = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/${fname}`;
+        const frag = document.createElement("div");
+        frag.className = "frag";
+        const label = document.createElement("span");
+        label.textContent = `Фрагмент ${i}`;
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "none";
+        audio.src = url;
+        frag.appendChild(label);
+        frag.appendChild(audio);
+        player.appendChild(frag);
+      }
+      content.appendChild(player);
+    }
+  }
+
+  // ИИ-анализ для фотоотчётов
+  if (planItem.kind === "photo" && record) {
+    const ai = document.createElement("div");
+    ai.className = "task-ai";
+    ai.textContent = runAiAnalysis(record.title, record.created_at);
+    content.appendChild(ai);
+  }
+
+  row.appendChild(content);
+
+  const timeEl = document.createElement("div");
+  timeEl.className = "task-time";
+  timeEl.textContent = record ? timeStr(record.created_at) : "";
+  row.appendChild(timeEl);
+
+  return row;
+}
+
+function buildLessonRow(lesson, record) {
+  const row = document.createElement("div");
+  row.className = "task-row";
+  row.appendChild(makeStatus(!!record));
+
+  const content = document.createElement("div");
+  content.className = "task-content";
+  const titleEl = document.createElement("div");
+  titleEl.className = "task-title" + (record ? " done" : "");
+  titleEl.textContent = lesson.text;
+  content.appendChild(titleEl);
+  row.appendChild(content);
+
+  const timeEl = document.createElement("div");
+  timeEl.className = "task-time";
+  timeEl.textContent = record ? timeStr(record.created_at) : "";
+  row.appendChild(timeEl);
+
+  return row;
+}
+
+function renderToday(records, container) {
+  const now = new Date();
+  const todayStr = now.toDateString();
+
+  const todayRecords = records.filter(r => new Date(r.created_at).toDateString() === todayStr);
+
+  // Заголовок
+  const head = document.createElement("div");
+  head.className = "day-head";
+  head.innerHTML = `<div class="day-name">📅 Сегодня · ${WEEKDAYS[jsDow(now)]}, ${now.getDate()} ${MONTHS[now.getMonth()]}</div>`;
+  container.appendChild(head);
+
+  // План
+  const plan = buildTodayPlan(now);
+  let doneCount = 0;
+  const matchedRecords = new Set();
+
+  plan.forEach(item => {
+    const rec = findRecordForPlan(item, todayRecords);
+    if (rec) {
+      doneCount++;
+      matchedRecords.add(rec.id);
+    }
+    container.appendChild(buildPlanRow(item, rec));
+  });
+
+  // Прогресс
+  head.querySelector(".day-name").innerHTML +=
+    `<span class="day-progress" style="margin-left:10px">${doneCount} / ${plan.length}</span>`;
+
+  // Уроки музыки
+  const lessons = buildTodayLessons(now);
+  if (lessons.length) {
+    const st = document.createElement("div");
+    st.className = "section-title";
+    st.textContent = "🎼 Уроки музыки сегодня";
+    container.appendChild(st);
+
+    lessons.forEach(l => {
+      const rec = findRecordForLesson(l, todayRecords);
+      if (rec) matchedRecords.add(rec.id);
+      container.appendChild(buildLessonRow(l, rec));
+    });
+  }
+
+  // Прочее — записи за сегодня, которые не попали в план
+  const orphans = todayRecords.filter(r => !matchedRecords.has(r.id));
+  if (orphans.length) {
+    const st = document.createElement("div");
+    st.className = "section-title";
+    st.textContent = "📋 Прочее";
+    container.appendChild(st);
+
+    orphans.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.appendChild(makeStatus(true));
+      const content = document.createElement("div");
+      content.className = "task-content";
+      const t = document.createElement("div");
+      t.className = "task-title done";
+      t.textContent = r.title;
+      content.appendChild(t);
+      row.appendChild(content);
+      const timeEl = document.createElement("div");
+      timeEl.className = "task-time";
+      timeEl.textContent = timeStr(r.created_at);
+      row.appendChild(timeEl);
+      container.appendChild(row);
+    });
+  }
+}
+
+function renderHistory(records, container) {
+  const byDay = {};
+  records.forEach(r => {
+    const k = dayKey(r.created_at);
+    if (!byDay[k]) byDay[k] = { date: r.created_at, items: [] };
+    byDay[k].items.push(r);
+  });
+
+  const days = Object.values(byDay).sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (!days.length) {
+    container.innerHTML = '<div class="empty">Записей пока нет.</div>';
+    return;
+  }
+
+  days.forEach(day => {
+    const head = document.createElement("div");
+    head.className = "day-head";
+    const d = new Date(day.date);
+    head.innerHTML = `<div class="day-name">📅 ${dayLabel(d)}, ${d.getDate()} ${MONTHS[d.getMonth()]}</div>`;
+    container.appendChild(head);
+
+    day.items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    day.items.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.appendChild(makeStatus(true));
+      const content = document.createElement("div");
+      content.className = "task-content";
+      const t = document.createElement("div");
+      t.className = "task-title done";
+      t.textContent = r.title;
+      content.appendChild(t);
+      row.appendChild(content);
+      const timeEl = document.createElement("div");
+      timeEl.className = "task-time";
+      timeEl.textContent = timeStr(r.created_at);
+      row.appendChild(timeEl);
+      container.appendChild(row);
+    });
+  });
+}
+
+// ============================================================
+// ЗАГРУЗКА
+// ============================================================
 
 function toggleHistory() {
   showHistory = !showHistory;
   document.getElementById("hist-btn").textContent =
     showHistory ? "📅 Только сегодня" : "📜 Показать всю историю";
   loadTasks();
-}
-
-function buildControlBlock(records) {
-  const box = document.getElementById("control-box");
-  const tmr = nextSchoolDate(new Date());
-  if (!tmr) { box.innerHTML = ""; return; }
-
-  const dow = jsDow(tmr);
-  const expected = homeworkSubjectsFor(dow);
-  const today = new Date().toDateString();
-
-  const doneToday = records
-    .filter(r => new Date(r.created_at).toDateString() === today)
-    .map(r => (r.title || "").replace("Домашка: ", "").trim());
-
-  const matched = expected.filter(s => doneToday.includes(s));
-  const missing = expected.filter(s => !doneToday.includes(s));
-
-  let html = `<div class="control">
-    <div class="control-title">📊 На завтра, ${WEEKDAYS[dow]}</div>
-    <div class="control-line">Уроков с домашкой: <b>${expected.length}</b></div>
-    <div class="control-line">Отмечено: <b>${matched.length} из ${expected.length}</b></div>`;
-
-  if (missing.length) {
-    html += `<div class="control-miss">❗ Не отчиталась: ${missing.join(", ")}</div>`;
-  } else if (expected.length) {
-    html += `<div class="control-line" style="color:#00ffb3">✅ Домашка закрыта по всем предметам</div>`;
-  }
-  html += `</div>`;
-  box.innerHTML = html;
 }
 
 async function loadTasks() {
@@ -146,81 +529,14 @@ async function loadTasks() {
       return;
     }
 
-    buildControlBlock(records);
-
-    const today = new Date().toDateString();
-    if (!showHistory) {
-      records = records.filter(r => new Date(r.created_at).toDateString() === today);
-    }
-
-    if (!records.length) {
-      logBox.innerHTML = '<div class="empty">Сигналов от Веры пока нет.</div>';
-      return;
-    }
-
-    records.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     logBox.innerHTML = "";
+    logBox.className = "";
 
-    records.forEach(item => {
-      const d = new Date(item.created_at);
-      const timeStr = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-      const dateStr = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
-      const t = (item.title || "").toLowerCase();
-      const div = document.createElement("div");
-
-      // Флейта с записью
-      if (t.startsWith("флейта")) {
-        div.className = "card flute";
-        let playerHtml = "";
-
-        const sidMatch = item.title.match(/sid=(\d+_\d+)/);
-        const fragMatch = item.title.match(/(\d+)\s+фрагмент/);
-
-        if (sidMatch && fragMatch) {
-          const sid = sidMatch[1];
-          const n = parseInt(fragMatch[1]);
-          let players = "";
-          for (let i = 1; i <= n; i++) {
-            const fname = `frag_${String(i).padStart(2, '0')}.flac`;
-            const url = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/${fname}`;
-            players += `
-              <div style="margin-top:6px; font-size:12px;">
-                <span style="color:#00b3ff">Фрагмент ${i}</span>
-                <audio controls preload="none" src="${url}"></audio>
-              </div>`;
-          }
-          playerHtml = `<div style="margin-top:8px">${players}</div>`;
-        }
-
-        div.innerHTML = `<div class="card-title">🎵 Флейта — запись</div>
-                         <div>${item.title}</div>
-                         ${playerHtml}
-                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
-      }
-      // ИИ-карточки (фотоотчёты)
-      else if (item.title.includes("Фотоотчет") || item.title.includes("Фотоотчёт")
-               || t.includes("портфель") || t.includes("одежд") || t.includes("комнат")) {
-        div.className = "card ai";
-        div.innerHTML = `<div class="card-title">🤖 ИИ-Ассистент</div>
-                         <div class="card-ai-text">${runAiAnalysis(item.title, item.created_at)}</div>
-                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
-      }
-      // Хвосты
-      else if (item.title.startsWith("Хвост:")) {
-        div.className = "card leftover";
-        div.innerHTML = `<div class="card-title">↪ Хвост закрыт</div>
-                         <div>${item.title}</div>
-                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
-      }
-      // Обычные
-      else {
-        div.className = "card";
-        div.innerHTML = `<div class="card-title">✅ Вера выполнила:</div>
-                         <div>${item.title}</div>
-                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
-      }
-      logBox.appendChild(div);
-    });
+    if (showHistory) {
+      renderHistory(records, logBox);
+    } else {
+      renderToday(records, logBox);
+    }
   } catch (e) {
     console.error(e);
     logBox.innerHTML = '<div class="empty">Ошибка чтения облака.</div>';
