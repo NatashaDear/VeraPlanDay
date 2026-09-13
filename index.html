@@ -56,10 +56,13 @@
 
         async function loadTasks() {
             try {
-                let response = await fetch(`${url}&apikey=${key}`, {
-                    method: "GET",
-                    headers: { "Prefer": "return=representation" }
+               let response = await fetch(url, { 
+                    headers: { 
+                        "apikey": key, 
+                        "Authorization": `Bearer ${key}`
+                    } 
                 });
+
                 
                 let records = await response.json();
                 let logBox = document.getElementById("log-box");
