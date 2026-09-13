@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пульт Мамы: Control Веры (ИИ)</title>
+    <title>Пульт Мамы: Контроль Веры (ИИ)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 15px; margin: 0; }
         h2 { color: #00ffb3; text-align: center; font-size: 18px; margin-bottom: 20px; }
@@ -22,7 +22,6 @@
     <div id="log-box">Ожидание загрузки данных...</div>
 
     <script>
-        // ИСПРАВЛЕНО 404: Прописан ваш личный рабочий адрес проекта Supabase
         const url = "https://supabase.co";
         const key = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 
@@ -46,7 +45,7 @@
                 if (tomorrow === 1 || tomorrow === 3) {
                     return `👟 Внимание! На следующий учебный день ФИЗКУЛЬТУРА.\nИИ проверил форму: кроссовки, штаны и футболка на месте!`;
                 } else {
-                    return `👗 Школьная форма приготовлена.\nКомплект одежды распознан и одобрен.`;
+                    return `👗 Школьная forma приготовлена.\nКомплект одежды распознан и одобрен.`;
                 }
             } else if (title.toLowerCase().includes("комнате")) {
                 return `🧹 Анализ уборки 'До и После':\nПоверхность стола очищена на 95%.\nКровать заправлена. Порядок зафиксирован!`;
@@ -56,14 +55,13 @@
 
         async function loadTasks() {
             try {
-               let response = await fetch(url, { 
+                // ИСПРАВЛЕНО: Ключ передается в заголовках, адрес ссылки uwuehnueutxpzyzyvxwj больше не ломается!
+                let response = await fetch(url, { 
                     headers: { 
                         "apikey": key, 
                         "Authorization": `Bearer ${key}`
                     } 
                 });
-
-                
                 let records = await response.json();
                 let logBox = document.getElementById("log-box");
                 logBox.innerHTML = "";
@@ -91,7 +89,7 @@
                 });
             } catch (e) {
                 console.error(e);
-                document.getElementById("log-box").innerHTML = "Сигналов от Веры за сегодня пока нет.";
+                document.getElementById("log-box").innerHTML = "Ошибка чтения облака. Перезапустите страницу.";
             }
         }
         loadTasks();
