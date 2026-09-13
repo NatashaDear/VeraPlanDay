@@ -3,29 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Пульт Мамы: Контроль Веры (ИИ)</title>
+<title>Пульт Мамы: Контроль Веры</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
          background:#121212; color:#fff; padding:15px; margin:0; }
   h2 { color:#00ffb3; text-align:center; font-size:18px; margin-bottom:20px; }
-  .btn-check { display:block; width:100%; background:#00ffb3; color:#121212; border:none;
-               padding:12px; font-weight:bold; border-radius:8px; font-size:15px;
-               cursor:pointer; margin-bottom:10px; }
+  .btn { display:block; width:100%; background:#00ffb3; color:#121212; border:none;
+         padding:12px; font-weight:bold; border-radius:8px; font-size:15px;
+         cursor:pointer; margin-bottom:10px; }
   .btn-alt { background:#333; color:#fff; }
+  .control { background:#0e2b22; border-radius:8px; padding:14px;
+             margin-bottom:15px; border-left:4px solid #00ffb3; }
+  .control-title { font-size:15px; font-weight:bold; color:#00ffb3; margin-bottom:8px; }
+  .control-line { font-size:13px; margin-bottom:4px; }
+  .control-miss { color:#ff8080; font-size:13px; margin-top:6px; }
   .card { background:#1e1e1e; border-radius:8px; padding:12px; margin-bottom:10px;
           border-left:4px solid #00ff00; }
   .card.ai { border-left-color:#ffcc00; }
+  .card.flute { border-left-color:#00b3ff; }
+  .card.leftover { border-left-color:#ff8800; }
   .card-title { font-size:14px; font-weight:bold; margin-bottom:4px; }
   .card-time { font-size:11px; color:#888; margin-top:6px; }
   .card-ai-text { font-size:13px; color:#ffcc00; margin-top:5px; white-space:pre-line; }
   .empty { color:#777; text-align:center; padding:20px; }
+  audio { width:100%; height:32px; margin-top:4px; }
 </style>
 </head>
 <body>
 
-<h2>📱 Пульт Мамы: Контроль Веры (ИИ)</h2>
-<button class="btn-check" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
-<button class="btn-check btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
+<h2>📱 Пульт Мамы: Контроль Веры</h2>
+<button class="btn" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
+<button class="btn btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
+<div id="control-box"></div>
 <div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
 <script>
@@ -33,50 +42,96 @@ const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks?select=*&order=created_at.desc&limit=300";
 
-// 0 = Понедельник — как в Python!
+// 0 = Понедельник — как в Python
 const schoolChart = {
-  0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
-  1: ["Разговоры о важном*", "Русский язык", "Математика", "Физическая культура*", "Биология", "Изобразительное искусство*"],
-  2: ["Иностранный язык", "Русский язык", "История", "Литература", "География", "Математика"],
-  3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
-  4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"]
+  0: ["Математика","История","Русский язык","Литература","Музыка*"],
+  1: ["Разговоры о важном*","Русский язык","Математика","Физическая культура*","Биология","Изобразительное искусство*"],
+  2: ["Иностранный язык","Русский язык","История","Литература","География","Математика"],
+  3: ["Труд*","Труд*","Математика","Физическая культура*","Русский язык"],
+  4: ["История","Математика","Русский язык","Литература","Музыка*"],
+  5: [], 6: []
 };
 
-const PHYSICAL_DAYS = [1, 3];           // Вт и Чт — физкультура
+const WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
 let showHistory = false;
 
-// 0 = Пн (совместимо с Python weekday())
+// 0 = Пн, как в Python weekday()
 const jsDow = d => (d.getDay() + 6) % 7;
+
+function nextSchoolDate(fromDate) {
+  let d = new Date(fromDate);
+  for (let i = 0; i < 7; i++) {
+    d.setDate(d.getDate() + 1);
+    const dow = jsDow(d);
+    if (schoolChart[dow] && schoolChart[dow].length) return new Date(d);
+  }
+  return null;
+}
+
+function homeworkSubjectsFor(dow) {
+  return (schoolChart[dow] || []).filter(s => !s.includes("*"));
+}
 
 function runAiAnalysis(title, timestamp) {
   const t = title.toLowerCase();
   const taskDate = new Date(timestamp);
-  // Если портфель собирают вечером — смотрим расписание СЛЕДУЮЩЕГО дня
-  const checkDate = new Date(taskDate);
-  if (taskDate.getHours() >= 16) checkDate.setDate(checkDate.getDate() + 1);
-  const dow = jsDow(checkDate);
+  const tmr = nextSchoolDate(taskDate);
+  if (!tmr) return "🎒 Отчёт принят.";
+
+  const dow = jsDow(tmr);
+  const subjects = homeworkSubjectsFor(dow);
 
   if (t.includes("портфель")) {
-    const lessons = schoolChart[dow] || [];
-    const books = lessons.filter(l => !l.includes("*")).length;
-    const nextDayName = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"][dow];
-    return `🎒 Портфель проверен.\nНа ${nextDayName} нужно учебников: ${books} шт.\nСканирование корешков: успешно, лишнего нет.`;
+    return `🎒 Портфель на ${WEEKDAYS[dow]}.\n` +
+           `Учебников должно быть: ${subjects.length} шт.\n` +
+           `Список: ${subjects.join(", ")}.`;
   }
-  if (t.includes("одежду")) {
-    if (PHYSICAL_DAYS.includes(dow))
-      return `👟 Внимание! Следующий учебный день — ФИЗКУЛЬТУРА.\nИИ проверил форму: кроссовки, штаны и футболка на месте!`;
-    return `👗 Школьная форма приготовлена.\nКомплект распознан и одобрен.`;
+  if (t.includes("одежду") || t.includes("одежд")) {
+    const hasPE = (schoolChart[dow] || []).some(s => s.toLowerCase().includes("физ"));
+    if (hasPE) return `👟 Завтра ФИЗКУЛЬТУРА. Проверьте форму: кроссовки, штаны, футболка.`;
+    return `👗 Школьная форма на ${WEEKDAYS[dow]} заявлена.`;
   }
-  if (t.includes("комнате"))
-    return `🧹 Анализ уборки «до и после»:\nСтол очищен на 95%.\nКровать заправлена. Порядок зафиксирован!`;
-  return `📷 Фотоотчёт принят и обработан ИИ.`;
+  if (t.includes("комнат")) {
+    return `🧹 Уборка заявлена Верой. Отчёт принят.`;
+  }
+  return "📷 Отчёт принят.";
 }
 
 function toggleHistory() {
   showHistory = !showHistory;
   document.getElementById("hist-btn").textContent =
-    showHistory ? "📅 Показать только сегодня" : "📜 Показать всю историю";
+    showHistory ? "📅 Только сегодня" : "📜 Показать всю историю";
   loadTasks();
+}
+
+function buildControlBlock(records) {
+  const box = document.getElementById("control-box");
+  const tmr = nextSchoolDate(new Date());
+  if (!tmr) { box.innerHTML = ""; return; }
+
+  const dow = jsDow(tmr);
+  const expected = homeworkSubjectsFor(dow);
+  const today = new Date().toDateString();
+
+  const doneToday = records
+    .filter(r => new Date(r.created_at).toDateString() === today)
+    .map(r => (r.title || "").replace("Домашка: ", "").trim());
+
+  const matched = expected.filter(s => doneToday.includes(s));
+  const missing = expected.filter(s => !doneToday.includes(s));
+
+  let html = `<div class="control">
+    <div class="control-title">📊 На завтра, ${WEEKDAYS[dow]}</div>
+    <div class="control-line">Уроков с домашкой: <b>${expected.length}</b></div>
+    <div class="control-line">Отмечено: <b>${matched.length} из ${expected.length}</b></div>`;
+
+  if (missing.length) {
+    html += `<div class="control-miss">❗ Не отчиталась: ${missing.join(", ")}</div>`;
+  } else if (expected.length) {
+    html += `<div class="control-line" style="color:#00ffb3">✅ Домашка закрыта по всем предметам</div>`;
+  }
+  html += `</div>`;
+  box.innerHTML = html;
 }
 
 async function loadTasks() {
@@ -86,57 +141,94 @@ async function loadTasks() {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
     });
     let records = await res.json();
-
     if (!res.ok || !Array.isArray(records)) {
       logBox.innerHTML = '<div class="empty">Ошибка доступа к облаку.</div>';
       return;
     }
 
-    const today = new Date().toDateString();
-    if (!showHistory) records = records.filter(r => new Date(r.created_at).toDateString() === today);
+    buildControlBlock(records);
 
-    if (records.length === 0) {
+    const today = new Date().toDateString();
+    if (!showHistory) {
+      records = records.filter(r => new Date(r.created_at).toDateString() === today);
+    }
+
+    if (!records.length) {
       logBox.innerHTML = '<div class="empty">Сигналов от Веры пока нет.</div>';
       return;
     }
 
-    // Свежие сверху
     records.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
     logBox.innerHTML = "";
+
     records.forEach(item => {
       const d = new Date(item.created_at);
       const timeStr = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
       const dateStr = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
       const t = (item.title || "").toLowerCase();
-
       const div = document.createElement("div");
-      const isReport = item.title.includes("Фотоотчёт") || item.title.includes("Фотоотчет")
-                    || t.includes("собрать") || t.includes("приготовить") || t.includes("прибрать");
 
-      if (isReport) {
+      // Флейта с записью
+      if (t.startsWith("флейта")) {
+        div.className = "card flute";
+        let playerHtml = "";
+
+        const sidMatch = item.title.match(/sid=(\d+_\d+)/);
+        const fragMatch = item.title.match(/(\d+)\s+фрагмент/);
+
+        if (sidMatch && fragMatch) {
+          const sid = sidMatch[1];
+          const n = parseInt(fragMatch[1]);
+          let players = "";
+          for (let i = 1; i <= n; i++) {
+            const fname = `frag_${String(i).padStart(2, '0')}.flac`;
+            const url = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/${fname}`;
+            players += `
+              <div style="margin-top:6px; font-size:12px;">
+                <span style="color:#00b3ff">Фрагмент ${i}</span>
+                <audio controls preload="none" src="${url}"></audio>
+              </div>`;
+          }
+          playerHtml = `<div style="margin-top:8px">${players}</div>`;
+        }
+
+        div.innerHTML = `<div class="card-title">🎵 Флейта — запись</div>
+                         <div>${item.title}</div>
+                         ${playerHtml}
+                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
+      }
+      // ИИ-карточки (фотоотчёты)
+      else if (item.title.includes("Фотоотчет") || item.title.includes("Фотоотчёт")
+               || t.includes("портфель") || t.includes("одежд") || t.includes("комнат")) {
         div.className = "card ai";
-        div.innerHTML =
-          `<div class="card-title">🤖 ИИ-Ассистент</div>
-           <div class="card-ai-text">${runAiAnalysis(item.title, item.created_at)}</div>
-           <div class="card-time">📅 ${dateStr} в ${timeStr}</div>`;
-      } else {
+        div.innerHTML = `<div class="card-title">🤖 ИИ-Ассистент</div>
+                         <div class="card-ai-text">${runAiAnalysis(item.title, item.created_at)}</div>
+                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
+      }
+      // Хвосты
+      else if (item.title.startsWith("Хвост:")) {
+        div.className = "card leftover";
+        div.innerHTML = `<div class="card-title">↪ Хвост закрыт</div>
+                         <div>${item.title}</div>
+                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
+      }
+      // Обычные
+      else {
         div.className = "card";
-        div.innerHTML =
-          `<div class="card-title">✅ Вера выполнила:</div>
-           <div>${item.title}</div>
-           <div class="card-time">📅 ${dateStr} в ${timeStr}</div>`;
+        div.innerHTML = `<div class="card-title">✅ Вера выполнила:</div>
+                         <div>${item.title}</div>
+                         <div class="card-time">📅 ${dateStr}, ${timeStr}</div>`;
       }
       logBox.appendChild(div);
     });
   } catch (e) {
     console.error(e);
-    logBox.innerHTML = '<div class="empty">Ошибка чтения облака. Проверьте интернет.</div>';
+    logBox.innerHTML = '<div class="empty">Ошибка чтения облака.</div>';
   }
 }
 
 loadTasks();
-setInterval(loadTasks, 15000);
+setInterval(loadTasks, 60000);
 </script>
 </body>
 </html>
