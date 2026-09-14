@@ -626,7 +626,7 @@ function renderHistory(records, container) {
       content.appendChild(t);
 
       const lower = (r.title || "").toLowerCase();
-      if (lower.startsWith("флейта")) {
+      if (lower.startsWith("флейта") || lower.startsWith("оркестр")) {
         const sid = extractSid(r.title);
         const fragMatch = (r.title || "").match(/(\d+)\s+фрагмент/);
         if (sid && fragMatch) {
