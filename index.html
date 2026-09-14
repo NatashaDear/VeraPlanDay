@@ -1,1095 +1,693 @@
-import datetime
-import time
-import random
-import os
-import io
-import re
-import json
-import threading
-import webbrowser
-import requests
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Пульт Мамы: Контроль Веры</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background:#121212; color:#fff; padding:15px; margin:0; }
+  h2 { color:#00ffb3; text-align:center; font-size:18px; margin-bottom:16px; }
+  .btn { display:block; width:100%; background:#00ffb3; color:#121212; border:none;
+         padding:12px; font-weight:bold; border-radius:8px; font-size:15px;
+         cursor:pointer; margin-bottom:10px; }
+  .btn-alt { background:#333; color:#fff; }
 
-try:
-    import numpy as np
-    import soundfile as sf
-    import sounddevice as sd
-    HAS_AUDIO = True
-except Exception as e:
-    print("⚠️ Аудио недоступно:", e)
-    HAS_AUDIO = False
+  .day-head { display:flex; justify-content:space-between; align-items:baseline;
+              margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #00ffb3; }
+  .day-name { font-size:15px; font-weight:bold; color:#00ffb3; }
+  .day-progress { font-size:12px; color:#888; margin-left:10px; }
 
-from kivy.app import App
-from kivy.clock import Clock
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.screenmanager import ScreenManager, Screen
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.uix.checkbox import CheckBox
-from kivy.uix.textinput import TextInput
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.popup import Popup
+  .section-title { font-size:12px; text-transform:uppercase;
+                   letter-spacing:0.5px; margin:16px 0 8px 0;
+                   padding-left:2px; }
+  .section-school { color:#a7d4ff; }
+  .section-music  { color:#ffd27f; }
+  .section-base   { color:#cccccc; }
+  .section-lessons{ color:#c5a3ff; }
+  .section-other  { color:#ff9999; }
 
-os.environ["PYTHONIOENCODING"] = "utf-8"
+  .task-row { display:flex; gap:8px; padding:8px 0;
+              border-bottom:1px solid #262626; align-items:flex-start; }
+  .task-row:last-child { border-bottom:none; }
+  .task-status { flex:0 0 18px; width:18px; height:18px; margin-top:2px;
+                 border:2px solid #444; border-radius:4px;
+                 display:flex; align-items:center; justify-content:center;
+                 font-size:13px; color:transparent; }
+  .task-status.done { background:#00ffb3; border-color:#00ffb3; color:#121212; }
+  .task-content { flex:1; min-width:0; }
+  .task-title { font-size:13px; color:#ddd; word-break:break-word; }
+  .task-title.done { color:#888; }
+  .task-time { flex:0 0 48px; font-size:12px; color:#00ffb3; text-align:right;
+               padding-top:2px; font-variant-numeric:tabular-nums;
+               font-weight:bold; }
+  .task-time.empty { color:#333; }
 
-# ============================================================
-# КОНФИГУРАЦИЯ
-# ============================================================
+  .task-ai { font-size:12px; color:#ffcc00; margin-top:4px;
+             white-space:pre-line; line-height:1.4; }
 
-SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co"
-SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ"
+  .photos { margin-top:6px; }
+  .photo-row { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; }
+  .photo-row img { max-width:120px; max-height:120px; border-radius:6px;
+                   border:1px solid #333; background:#000; }
+  .photo-label { font-size:11px; color:#888; margin-top:2px; }
 
-STATE_FILE = "vera_state.json"
+  .task-player { margin-top:6px; }
+  .frag { display:flex; align-items:center; gap:6px; font-size:11px;
+          color:#00b3ff; margin-top:3px; }
+  .frag audio { flex:1; height:28px; }
 
-FLUTE_MINUTES = 40
-PIANO_MINUTES = 20
-OLYMPIAD_PREP_MINUTES = 40
-COOLDOWN_SECONDS = 8
+  .empty { color:#777; text-align:center; padding:20px; }
+</style>
+</head>
+<body>
 
-FRAGMENT_DURATION = 15
-FRAGMENT_INTERVAL = 5 * 60
-TOTAL_FRAGMENTS = 8
-SAMPLERATE = 16000
-STORAGE_BUCKET = "flute-recordings"
-PHOTO_BUCKET = "photo-reports"
+<h2>📱 Пульт Мамы: Контроль Веры</h2>
+<button class="btn" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
+<button class="btn btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
+<div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
-MUSIC_LESSON_DURATION = {
-    "Специальность": 45,
-    "Фортепиано": 20,
-    "Ансамбль": 45,
-    "Муз. литература": 45,
-    "Сольфеджио": 45,
-    "Хор": 45,
-    "Оркестр": 90,
+<script>
+// ============================================================
+// КОНФИГУРАЦИЯ — синхронизировано с aimoto_child.py
+// ============================================================
+
+const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
+const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
+const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks?select=*&order=created_at.desc&limit=300";
+
+const SCHOOL_CHART = {
+  0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
+  1: ["Разговоры о важном*", "Русский язык", "Математика",
+      "Физическая культура*", "Биология", "Изобразительное искусство*"],
+  2: ["Иностранный язык", "Русский язык", "История",
+      "Литература", "География", "Математика"],
+  3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
+  4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"],
+  5: [], 6: []
+};
+
+const MUSIC_CHART = {
+  0: ["🪈 Специальность (17:45)"],
+  1: ["🎼 Муз. литература (14:45)"],
+  2: ["🎹 Фортепиано (18:05)", "🪈 Специальность (18:30)"],
+  3: ["👥 Ансамбль (17:00)"],
+  4: [],
+  5: ["🎻 Оркестр (15:00)"],
+  6: ["📝 Сольфеджио (11:00)", "🎤 Хор (13:35)"]
+};
+
+const DAILY_MUSIC_HOMEWORK = {
+  0: [{ text: "🎻 Оркестр: партии (40 мин)", kind: "study" }],
+  1: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" }],
+  2: [],
+  3: [{ text: "📖 Муз. литература (30 мин)", kind: "study" }],
+  4: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" },
+      { text: "🎻 Оркестр: партии (40 мин)", kind: "study" }],
+  5: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" },
+      { text: "📝 Сольфеджио (30 мин)", kind: "study" }],
+  6: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" }]
+};
+
+const HOMEWORK_MOVES = {
+  "2|История": 3,
+  "2|Литература": 3,
+  "4|История": 5,
+  "4|Литература": 5
+};
+
+const OLYMPIADS = {
+  "2026-09-15": "История",
+  "2026-09-17": "Русский язык",
+  "2026-09-28": "Английский язык",
+  "2026-10-08": "Биология",
+  "2026-10-14": "Математика",
+  "2026-10-20": "География"
+};
+
+const WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
+const MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+
+let showHistory = false;
+
+// ============================================================
+// ХЕЛПЕРЫ
+// ============================================================
+
+const jsDow = d => (d.getDay() + 6) % 7;
+
+function homeworkSubjectsFor(dow) {
+  return (SCHOOL_CHART[dow] || []).filter(s => !s.includes("*"));
 }
 
-PHOTO_STEPS = {
-    "🎒 Собрать портфель": [
-        {"title": "Шаг 1: сфотографируй учебники в портфеле",
-         "hint": "Разложи учебники и сфотографируй",
-         "role": "portfolio"},
-    ],
-    "👗 Приготовить одежду": [
-        {"title": "Шаг 1: сфотографируй одежду на завтра",
-         "hint": "Разложи форму и сфотографируй",
-         "role": "clothes"},
-    ],
-    "🧹 Прибрать в комнате": [
-        {"title": "Шаг 1 из 2: сфотографируй комнату ДО уборки",
-         "hint": "Сфотографируй, как сейчас",
-         "role": "room_before"},
-        {"title": "Шаг 2 из 2: сфотографируй комнату ПОСЛЕ уборки",
-         "hint": "Сфотографируй результат",
-         "role": "room_after"},
-    ],
+function daysFromToday(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const oDate = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((oDate - today) / 86400000);
 }
 
-# ============================================================
-# РАСПИСАНИЯ
-# ============================================================
-
-SCHOOL_CHART = {
-    0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
-    1: ["Разговоры о важном*", "Русский язык", "Математика",
-        "Физическая культура*", "Биология", "Изобразительное искусство*"],
-    2: ["Иностранный язык", "Русский язык", "История",
-        "Литература", "География", "Математика"],
-    3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
-    4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"],
-    5: [], 6: []
+function dayKey(d) {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${x.getMonth()+1}-${x.getDate()}`;
 }
 
-MUSIC_CHART = {
-    0: ["🪈 Специальность (17:45)"],
-    1: ["🎼 Муз. литература (14:45)"],
-    2: ["🎹 Фортепиано (18:05)", "🪈 Специальность (18:30)"],
-    3: ["👥 Ансамбль (17:00)"],
-    4: [],
-    5: ["🎻 Оркестр (15:00)"],
-    6: ["📝 Сольфеджио (11:00)", "🎤 Хор (13:35)"]
+function dayLabel(d) {
+  const x = new Date(d);
+  const today = new Date();
+  if (dayKey(x) === dayKey(today)) return "Сегодня";
+  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  if (dayKey(x) === dayKey(yest)) return "Вчера";
+  return WEEKDAYS[jsDow(x)];
 }
 
-CANCEL_KEYWORDS = ("Специальность", "Ансамбль")
-
-OLYMPIADS = {
-    datetime.date(2026, 9, 15): "История",
-    datetime.date(2026, 9, 17): "Русский язык",
-    datetime.date(2026, 9, 28): "Английский язык",
-    datetime.date(2026, 10, 8): "Биология",
-    datetime.date(2026, 10, 14): "Математика",
-    datetime.date(2026, 10, 20): "География"
+function timeStr(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
-WEEKDAYS = ["Понедельник", "Вторник", "Среда", "Четверг",
-            "Пятница", "Суббота", "Воскресенье"]
+// ============================================================
+// ПОСТРОЕНИЕ ПЛАНА ДНЯ — зеркало build_today_plan из Python
+// ============================================================
 
-# ============================================================
-# НЕДЕЛЬНЫЙ ПЛАН
-# ============================================================
+function buildTodayPlan(date) {
+  const dow = jsDow(date);
 
-# Музыкальная домашка по дням.
-# Флейта и фоно отменены в Пн/Ср/Чт (дни со Специальностью и Ансамблем).
-DAILY_MUSIC_HOMEWORK = {
-    0: ["🎻 Оркестр: партии (40 мин)"],                                    # Пн
-    1: ["🎵 Флейта (40 мин)", "🎹 Фортепиано (20 мин)"],                   # Вт
-    2: [],                                                                  # Ср — уроки
-    3: ["📖 Муз. литература (30 мин)"],                                    # Чт
-    4: ["🎵 Флейта (40 мин)", "🎹 Фортепиано (20 мин)",
-        "🎻 Оркестр: партии (40 мин)"],                                    # Пт
-    5: ["🎵 Флейта (40 мин)", "🎹 Фортепиано (20 мин)",
-        "📝 Сольфеджио (30 мин)"],                                         # Сб
-    6: ["🎵 Флейта (40 мин)", "🎹 Фортепиано (20 мин)"],                   # Вс
+  // 1. Олимпиады — в блок «Учёба», первой строкой
+  const olymp = [];
+  for (const [dateStr, name] of Object.entries(OLYMPIADS)) {
+    const delta = daysFromToday(dateStr);
+    if (delta === 1 || delta === 2) {
+      olymp.push({
+        text: `🏆 Олимпиада (${name}, 40 мин)`,
+        kind: "study",
+        section: "school"
+      });
+    }
+  }
+
+  // 2. Школьная домашка с переносами
+  const school = [];
+  for (let d = 0; d < 7; d++) {
+    const subjects = homeworkSubjectsFor(d);
+    for (const subj of subjects) {
+      const target = HOMEWORK_MOVES[`${d}|${subj}`] ?? d;
+      if (target === dow) {
+        school.push({
+          text: `📚 Домашка: ${subj}`,
+          kind: "study",
+          section: "school"
+        });
+      }
+    }
+  }
+
+  // 3. Музыкальная домашка
+  const music = (DAILY_MUSIC_HOMEWORK[dow] || []).map(m => ({
+    text: m.text, kind: m.kind, section: "music"
+  }));
+
+  // 4. Бытовые дела
+  const base = [];
+  if (dow <= 4) {
+    base.push({
+      text: dow === 4 ? "🎒 Собрать портфель (на Пн)" : "🎒 Собрать портфель",
+      kind: "photo", section: "base"
+    });
+    base.push({
+      text: dow === 4 ? "👗 Приготовить одежду (на Пн)" : "👗 Приготовить одежду",
+      kind: "photo", section: "base"
+    });
+  }
+  base.push({ text: "🧹 Прибрать в комнате", kind: "photo", section: "base" });
+
+  return [...olymp, ...school, ...music, ...base];
 }
 
-# Перенос школьной домашки с перегруженных дней.
-# Ключ: (откуда_dow, предмет), значение: куда_dow.
-HOMEWORK_MOVES = {
-    (2, "История"): 3,       # Ср История → Чт
-    (2, "Литература"): 3,    # Ср Литература → Чт
-    (4, "История"): 5,       # Пт История → Сб
-    (4, "Литература"): 5,    # Пт Литература → Сб
+function buildTodayLessons(date) {
+  const dow = jsDow(date);
+  const lessons = MUSIC_CHART[dow] || [];
+  const out = [];
+  for (const l of lessons) {
+    const m = l.match(/\S+\s+(.+?)\s+\((\d{1,2}):(\d{2})\)/);
+    if (m) {
+      out.push({
+        text: l,
+        name: m[1].trim(),
+        time: `${m[2].padStart(2, "0")}:${m[3]}`
+      });
+    }
+  }
+  return out;
 }
 
-def homework_subjects_for(dow):
-    return [s for s in SCHOOL_CHART.get(dow, []) if "*" not in s]
-
-def build_weekly_plan():
-    """
-    Возвращает dict {dow: [tasks]} для всей недели.
-    Задачи для домашки дня-в-день с учётом переносов.
-    """
-    plan = {d: [] for d in range(7)}
-
-    for dow in range(7):
-        # Школьная домашка (день-в-день, с переносами)
-        for subj in homework_subjects_for(dow):
-            target = HOMEWORK_MOVES.get((dow, subj), dow)
-            plan[target].append({
-                "text": f"📚 Домашка: {subj}",
-                "kind": "study",
-                "can_postpone": True,
-            })
-
-        # Музыкальная домашка
-        for m in DAILY_MUSIC_HOMEWORK.get(dow, []):
-            if "Флейта" in m:
-                plan[dow].append({
-                    "text": m, "kind": "flute", "can_postpone": False,
-                })
-            else:
-                plan[dow].append({
-                    "text": m, "kind": "study", "can_postpone": True,
-                })
-
-        # Базовые дела
-        if dow <= 4:   # Пн-Пт: портфель и одежда
-            label = "🎒 Собрать портфель"
-            if dow == 4:
-                label = "🎒 Собрать портфель (на Пн)"
-            plan[dow].append({"text": label, "kind": "photo", "can_postpone": False})
-
-            label2 = "👗 Приготовить одежду"
-            if dow == 4:
-                label2 = "👗 Приготовить одежду (на Пн)"
-            plan[dow].append({"text": label2, "kind": "photo", "can_postpone": False})
-
-        plan[dow].append({"text": "🧹 Прибрать в комнате",
-                          "kind": "photo", "can_postpone": False})
-
-    return plan
-
-# ============================================================
-# ЛОГИКА РАСПИСАНИЯ
-# ============================================================
-
-def next_school_date(from_date):
-    d = from_date
-    for _ in range(7):
-        d += datetime.timedelta(days=1)
-        if SCHOOL_CHART.get(d.weekday()):
-            return d
-    return None
-
-def day_has_cancel_lesson(dow):
-    for lesson in MUSIC_CHART.get(dow, []):
-        if any(k in lesson for k in CANCEL_KEYWORDS):
-            return True
-    return False
-
-def parse_music_lesson(lesson_str):
-    m = re.match(r'\S+\s+(.+?)\s+\((\d{1,2}):(\d{2})\)', lesson_str)
-    if not m:
-        return None
-    return m.group(1).strip(), int(m.group(2)), int(m.group(3))
-
-def music_lesson_duration(name):
-    for key, dur in MUSIC_LESSON_DURATION.items():
-        if key in name:
-            return dur
-    return 45
-
-# ============================================================
-# ЛОКАЛЬНОЕ СОСТОЯНИЕ
-# ============================================================
-
-def load_state():
-    today = datetime.date.today().isoformat()
-    try:
-        with open(STATE_FILE, encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        data = {}
-
-    if data.get("date") != today:
-        prev_date = data.get("date")
-        prev_tasks = data.get("prev_tasks", [])
-        prev_done = data.get("done", [])
-        leftovers = data.get("leftovers", [])
-
-        for t in prev_tasks:
-            if t["text"] not in prev_done and t.get("can_postpone", True):
-                leftovers.append({
-                    "text": t["text"], "kind": t["kind"],
-                    "since": prev_date or today,
-                })
-
-        return {"date": today, "done": [],
-                "leftovers": leftovers, "prev_tasks": [],
-                "lessons_sent": []}
-
-    data.setdefault("done", [])
-    data.setdefault("leftovers", [])
-    data.setdefault("prev_tasks", [])
-    data.setdefault("lessons_sent", [])
-    return data
-
-def save_state(state):
-    try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("save_state:", e)
-
-# ============================================================
-# АВТО-ОТМЕТКА УРОКОВ МУЗЫКИ
-# ============================================================
-
-def check_and_send_lessons(now, state):
-    dow = now.weekday()
-    lessons = MUSIC_CHART.get(dow, [])
-    changed = False
-
-    for lesson in lessons:
-        parsed = parse_music_lesson(lesson)
-        if not parsed:
-            continue
-        name, h, m = parsed
-        duration = music_lesson_duration(name)
-
-        start_dt = datetime.datetime.combine(now.date(), datetime.time(h, m))
-        end_dt = start_dt + datetime.timedelta(minutes=duration)
-
-        key = f"{name}|{h:02d}:{m:02d}"
-        if now >= end_dt and key not in state["lessons_sent"]:
-            title = f"Урок: {name} ({h:02d}:{m:02d})"
-            send_to_cloud({"title": title, "is_done": True})
-            state["lessons_sent"].append(key)
-            changed = True
-
-    if changed:
-        save_state(state)
-
-# ============================================================
-# ПЛАН НА СЕГОДНЯ
-# ============================================================
-
-def build_today_plan(now):
-    dow = now.weekday()
-    weekly = build_weekly_plan()
-    tasks = list(weekly[dow])
-
-    # Олимпиады — 40 мин подготовки за 2 дня, разово
-    for o_date, name in OLYMPIADS.items():
-        delta = (o_date - now.date()).days
-        if delta == 2:
-            tasks.append({
-                "text": f"🏆 Подготовка: {name} ({OLYMPIAD_PREP_MINUTES} мин)",
-                "kind": "study",
-                "can_postpone": True,
-            })
-
-    return tasks
-
-def build_orientation_text(now):
-    lines = []
-    dow = now.weekday()
-
-    school_today = SCHOOL_CHART.get(dow, [])
-    music_today = MUSIC_CHART.get(dow, [])
-    lines.append(f"📍 Сегодня, {WEEKDAYS[dow]}:")
-    if school_today:
-        lines.append(f"   Школа: {len(school_today)} уроков")
-    else:
-        lines.append("   Школа: выходной")
-    if music_today:
-        lines.append("   Музыкалка: " + ", ".join(music_today))
-    else:
-        lines.append("   Музыкалка: занятий нет")
-
-    tmr = next_school_date(now.date())
-    lines.append("")
-    if tmr is None:
-        lines.append("📅 Завтра: выходной 🎉")
-    else:
-        t_dow = tmr.weekday()
-        t_school = SCHOOL_CHART.get(t_dow, [])
-        t_music = MUSIC_CHART.get(t_dow, [])
-        lines.append(f"📅 Завтра, {WEEKDAYS[t_dow]} ({tmr.strftime('%d.%m')}):")
-        if t_school:
-            clean = [s.replace("*", "") for s in t_school]
-            lines.append(f"   Школа: {len(t_school)} уроков")
-            lines.append("   " + ", ".join(clean))
-            books = homework_subjects_for(t_dow)
-            lines.append(f"   📚 Учебников: {len(books)}")
-        else:
-            lines.append("   Школа: выходной")
-        if t_music:
-            lines.append("   Музыкалка: " + ", ".join(t_music))
-        else:
-            lines.append("   Музыкалка: занятий нет")
-
-    return "\n".join(lines)
-
-# ============================================================
-# ОБЛАКО
-# ============================================================
-
-def send_to_cloud(payload):
-    def worker():
-        try:
-            r = requests.post(
-                f"{SUPABASE_URL}/rest/v1/tasks",
-                json=payload,
-                headers={
-                    "apikey": SUPABASE_KEY,
-                    "Authorization": f"Bearer {SUPABASE_KEY}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal",
-                },
-                timeout=10,
-            )
-            if r.status_code >= 300:
-                print("⚠️", r.status_code, r.text[:200])
-            else:
-                print("✅ отправлено:", payload.get("title"))
-        except Exception as e:
-            print("❌ ошибка облака:", e)
-
-    threading.Thread(target=worker, daemon=True).start()
-
-# ============================================================
-# ЗАПИСЬ ЗВУКА
-# ============================================================
-
-def record_fragment(duration=FRAGMENT_DURATION):
-    if not HAS_AUDIO:
-        return None
-    try:
-        audio = sd.rec(
-            int(duration * SAMPLERATE),
-            samplerate=SAMPLERATE,
-            channels=1,
-            dtype='int16',
-        )
-        sd.wait()
-        return audio
-    except Exception as e:
-        print("❌ Ошибка записи:", e)
-        return None
-
-def audio_to_flac_bytes(audio):
-    buf = io.BytesIO()
-    sf.write(buf, audio, SAMPLERATE, format='FLAC')
-    return buf.getvalue()
-
-def upload_fragment(session_id, frag_index, data):
-    fname = f"{session_id}/frag_{frag_index:02d}.flac"
-    url = f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{fname}"
-    try:
-        r = requests.post(
-            url,
-            data=data,
-            headers={
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "audio/flac",
-                "x-upsert": "true",
-            },
-            timeout=30,
-        )
-        if r.status_code >= 300:
-            print("⚠️ Storage:", r.status_code, r.text[:200])
-            return False
-        print(f"✅ Фрагмент {frag_index} загружен ({len(data)//1024} КБ)")
-        return True
-    except Exception as e:
-        print("❌ Storage:", e)
-        return False
-
-def upload_photo(session_id, role, data):
-    fname = f"{session_id}/{role}.jpg"
-    url = f"{SUPABASE_URL}/storage/v1/object/{PHOTO_BUCKET}/{fname}"
-    try:
-        r = requests.post(
-            url,
-            data=data,
-            headers={
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "image/jpeg",
-                "x-upsert": "true",
-            },
-            timeout=30,
-        )
-        if r.status_code >= 300:
-            print("⚠️ Photo:", r.status_code, r.text[:200])
-            return False
-        print(f"✅ Фото {role}.jpg загружено ({len(data)} байт)")
-        return True
-    except Exception as e:
-        print("❌ Photo:", e)
-        return False
-
-# ============================================================
-# ЭКРАНЫ
-# ============================================================
-
-class MainScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.checkboxes = []
-        self.state = load_state()
-        self.built_date = None
-        self._flute_in_progress = False
-        self.last_action_time = 0.0
-
-        root = BoxLayout(orientation='vertical', padding=5, spacing=5)
-
-        self.status_lbl = Label(
-            text="", size_hint_y=0.1, font_size='13sp',
-            halign='center', valign='middle',
-        )
-        self.status_lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0], None)))
-        root.add_widget(self.status_lbl)
-
-        scroll = ScrollView(size_hint_y=0.77)
-        self.scroll_box = BoxLayout(
-            orientation='vertical', spacing=6, size_hint_y=None, padding=(4, 4)
-        )
-        self.scroll_box.bind(minimum_height=self.scroll_box.setter('height'))
-        scroll.add_widget(self.scroll_box)
-        root.add_widget(scroll)
-
-        root.add_widget(Button(
-            text="🔒 Панель мамы", size_hint_y=0.13, on_press=self.go_to_pin
-        ))
-        self.add_widget(root)
-
-        self.build_day()
-        Clock.schedule_interval(self._check_new_day, 60)
-        Clock.schedule_interval(self._check_lessons, 60)
-
-    def _check_new_day(self, dt):
-        if self.built_date and self.built_date != datetime.date.today():
-            self.state = load_state()
-            self.last_action_time = 0.0
-            self.build_day()
-            self.status_lbl.text = "🌅 Новый день — новый план!"
-
-    def _check_lessons(self, dt):
-        try:
-            check_and_send_lessons(datetime.datetime.now(), self.state)
-        except Exception as e:
-            print("check_lessons:", e)
-
-    def cooldown_remaining(self):
-        elapsed = time.time() - self.last_action_time
-        return max(0.0, COOLDOWN_SECONDS - elapsed)
-
-    def lock_action(self):
-        self.last_action_time = time.time()
-
-    def build_day(self):
-        self.scroll_box.clear_widgets()
-        self.checkboxes = []
-        self.built_date = datetime.date.today()
-        now = datetime.datetime.now()
-
-        orientation = Label(
-            text=build_orientation_text(now),
-            font_size='12sp', halign='left', valign='top',
-            size_hint_y=None, padding=(5, 5),
-        )
-        orientation.bind(
-            width=lambda s, w: setattr(s, 'text_size', (w, None)),
-            texture_size=lambda s, t: setattr(s, 'height', t[1] + 20),
-        )
-        self.scroll_box.add_widget(orientation)
-
-        self.scroll_box.add_widget(Label(
-            text="✍️ Дела на сегодня:", font_size='12sp',
-            size_hint_y=None, height=25, halign='left',
-        ))
-
-        tasks = build_today_plan(now)
-        self.state["prev_tasks"] = tasks
-        save_state(self.state)
-
-        for task in tasks:
-            self.add_task_row(task["text"], task["kind"])
-
-        if self.state["leftovers"]:
-            self.scroll_box.add_widget(Label(
-                text="↪ Хвосты:", font_size='12sp',
-                size_hint_y=None, height=25, halign='left',
-            ))
-            for lo in self.state["leftovers"]:
-                self.add_task_row(lo["text"], lo.get("kind", "study"),
-                                  is_leftover=True, since=lo.get("since"))
-
-        self.recount()
-        if not self.status_lbl.text:
-            self.status_lbl.text = "План готов ✍️"
-
-    def recount(self):
-        done = sum(1 for cb, _, _, _ in self.checkboxes if cb.active)
-        total = len(self.checkboxes)
-        if total and done >= total:
-            self.status_lbl.text = "🚀 Миссия выполнена, капитан Вера! 🫡"
-
-    def mark_photo_done(self, text):
-        if text not in self.state["done"]:
-            self.state["done"].append(text)
-            save_state(self.state)
-
-        for cb, t, _, _ in self.checkboxes:
-            if t == text:
-                if not cb.active:
-                    cb.active = True
-                break
-        self.recount()
-        self.lock_action()
-
-    def _flute_session_done(self, cancelled, text):
-        self._flute_in_progress = False
-        if cancelled:
-            return
-        if text not in self.state["done"]:
-            self.state["done"].append(text)
-            save_state(self.state)
-        self.build_day()
-        self.lock_action()
-        self.status_lbl.text = "🎵 Флейта — 40 минут! Отлично! 🌟"
-
-    def add_task_row(self, text, kind, is_leftover=False, since=None):
-        row = BoxLayout(orientation='horizontal', size_hint_y=None, height=44)
-        chk = CheckBox(size_hint_x=0.15, active=(text in self.state["done"]))
-
-        display = text
-        if is_leftover:
-            since_str = ""
-            if since:
-                try:
-                    d = datetime.date.fromisoformat(since)
-                    since_str = f" (с {d.strftime('%d.%m')})"
-                except Exception:
-                    pass
-            display = f"↪ {text}{since_str}"
-
-        lbl = Label(text=display, font_size='12sp', halign='left', valign='middle')
-        lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0], None)))
-
-        self.checkboxes.append((chk, text, kind, is_leftover))
-
-        def on_check(cb, value):
-            if kind == "flute":
-                if text in self.state["done"]:
-                    if not cb.active:
-                        cb.active = True
-                    return
-                if value and not self._flute_in_progress:
-                    cb.active = False
-                    self._flute_in_progress = True
-                    self.manager.get_screen('flute').start_session(
-                        on_done=lambda cancelled: self._flute_session_done(cancelled, text)
-                    )
-                    self.manager.current = 'flute'
-                return
-
-            if kind == "photo":
-                if value:
-                    if text in self.state["done"]:
-                        cb.active = True
-                        self.recount()
-                        return
-                    cb.active = False
-                    self.manager.get_screen('cam').start_task(text)
-                    self.manager.current = 'cam'
-                else:
-                    cb.active = (text in self.state["done"])
-                return
-
-            if kind == "game":
-                if value:
-                    rem = self.cooldown_remaining()
-                    if rem > 0:
-                        cb.active = False
-                        self.status_lbl.text = f"⚠️ Не части! Подожди {int(rem) + 1} сек."
-                        return
-                    if text not in self.state["done"]:
-                        self.state["done"].append(text)
-                        save_state(self.state)
-                    self.recount()
-                    self.status_lbl.text = "🎮 Машина времени запущена!"
-                    try:
-                        webbrowser.open("https://github.io")
-                    except Exception:
-                        pass
-                    send_to_cloud({"title": text.replace("🎮 ", ""), "is_done": True})
-                    self.lock_action()
-                else:
-                    cb.active = (text in self.state["done"])
-                return
-
-            if value:
-                rem = self.cooldown_remaining()
-                if rem > 0:
-                    cb.active = False
-                    self.status_lbl.text = f"⚠️ Не части! Подожди {int(rem) + 1} сек."
-                    return
-
-            if value and text not in self.state["done"]:
-                self.state["done"].append(text)
-                if is_leftover:
-                    self.state["leftovers"] = [
-                        lo for lo in self.state["leftovers"] if lo["text"] != text
-                    ]
-            elif not value and text in self.state["done"]:
-                self.state["done"].remove(text)
-            save_state(self.state)
-
-            self.recount()
-
-            if not value:
-                return
-
-            if "Математика" in text or "Сольфеджио" in text:
-                self.status_lbl.text = random.choice([
-                    "Ты сегодня королева чисел! 📐",
-                    "Отличный счёт! 🧠",
-                ])
-            elif "Русский" in text or "Литература" in text:
-                self.status_lbl.text = random.choice([
-                    "Грамотность на высоте! ✍️",
-                    "Прекрасная работа с текстом! 📚",
-                ])
-            elif "Фортепиано" in text or "Оркестр" in text or "Муз. литература" in text:
-                self.status_lbl.text = "🎵 Музыка — это твоя суперсила! 🌟"
-            elif "Подготовка" in text:
-                self.status_lbl.text = "🏆 Готовимся к олимпиаде! Удачи!"
-            else:
-                self.status_lbl.text = "Отличный шаг вперёд! 💪"
-
-            clean = (text.replace("📚 ", "").replace("🎒 ", "")
-                         .replace("👗 ", "").replace("🧹 ", "")
-                         .replace("🎵 ", "").replace("🏆 ", "")
-                         .replace("🎹 ", "").replace("📝 ", "")
-                         .replace("📖 ", "").replace("🎻 ", ""))
-            if is_leftover:
-                clean = "Хвост: " + clean
-            send_to_cloud({"title": clean, "is_done": True})
-
-            self.lock_action()
-
-        chk.bind(active=on_check)
-        row.add_widget(chk)
-        row.add_widget(lbl)
-        self.scroll_box.add_widget(row)
-
-    def go_to_pin(self, instance):
-        self.manager.current = 'pin'
-
-
-class FluteScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.remaining = 0
-        self.start_time = None
-        self.timer_event = None
-        self.blink_event = None
-        self.blink_state = False
-        self.stop_flag = threading.Event()
-        self.recording_thread = None
-        self.on_done_cb = None
-        self.fragments = []
-        self.session_id = None
-        self.cancelled = False
-
-        layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
-
-        top = BoxLayout(orientation='horizontal', size_hint_y=0.12)
-        top.add_widget(Label(text="🎵 Флейта — 40 минут", font_size='14sp'))
-        self.rec_indicator = Label(
-            text="", font_size='14sp', color=(1, 0, 0, 1),
-            size_hint_x=0.35, halign='right',
-        )
-        self.rec_indicator.bind(
-            size=lambda s, w: setattr(s, 'text_size', (w[0], None))
-        )
-        top.add_widget(self.rec_indicator)
-        layout.add_widget(top)
-
-        self.timer_lbl = Label(text="40:00", font_size='48sp', size_hint_y=0.42)
-        layout.add_widget(self.timer_lbl)
-
-        self.hint_lbl = Label(
-            text="Нажми «Начать».\nПока идёт запись — играй.",
-            font_size='12sp', size_hint_y=0.16, halign='center',
-        )
-        self.hint_lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0], None)))
-        layout.add_widget(self.hint_lbl)
-
-        self.start_btn = Button(text="▶ Начать", size_hint_y=0.13,
-                                on_press=self._start)
-        layout.add_widget(self.start_btn)
-
-        self.cancel_btn = Button(text="◀ Отмена", size_hint_y=0.12,
-                                 on_press=self._cancel)
-        layout.add_widget(self.cancel_btn)
-
-        self.add_widget(layout)
-
-    def start_session(self, on_done):
-        self.on_done_cb = on_done
-        if not HAS_AUDIO:
-            self.hint_lbl.text = (
-                "⚠️ Микрофон недоступен.\n"
-                "Запись обязательна.\nСкажи маме."
-            )
-            self.start_btn.disabled = True
-            self.cancel_btn.disabled = False
-        else:
-            self.start_btn.disabled = False
-            self.cancel_btn.disabled = False
-            self.cancel_btn.text = "◀ Отмена"
-            self.hint_lbl.text = "Нажми «Начать».\nПока идёт запись — играй."
-
-        self.remaining = FLUTE_MINUTES * 60
-        self.fragments = []
-        self.cancelled = False
-        self.stop_flag.clear()
-        self._update_label()
-
-    def _start(self, instance):
-        if self.timer_event:
-            return
-        self.start_time = time.time()
-        self.session_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.start_btn.disabled = True
-        self.cancel_btn.text = "◀ Прервать"
-        self.timer_event = Clock.schedule_interval(self._tick, 1)
-        self.blink_event = Clock.schedule_interval(self._blink, 0.8)
-        self.recording_thread = threading.Thread(
-            target=self._recording_worker, daemon=True,
-        )
-        self.recording_thread.start()
-
-    def _blink(self, dt):
-        self.blink_state = not self.blink_state
-        self.rec_indicator.text = "● REC" if self.blink_state else "   REC"
-
-    def _tick(self, dt):
-        elapsed = time.time() - self.start_time
-        self.remaining = max(0, FLUTE_MINUTES * 60 - elapsed)
-        self._update_label()
-        if self.remaining <= 0:
-            self._finish(cancelled=False)
-
-    def _update_label(self):
-        m, s = divmod(int(max(0, self.remaining)), 60)
-        self.timer_lbl.text = f"{m:02d}:{s:02d}"
-
-    def _recording_worker(self):
-        for i in range(TOTAL_FRAGMENTS):
-            if self.stop_flag.is_set():
-                break
-            target = i * FRAGMENT_INTERVAL
-            while not self.stop_flag.is_set():
-                if time.time() - self.start_time >= target:
-                    break
-                time.sleep(0.5)
-            if self.stop_flag.is_set():
-                break
-            audio = record_fragment()
-            if audio is None:
-                continue
-            if self.stop_flag.is_set():
-                break
-            data = audio_to_flac_bytes(audio)
-            self.fragments.append((i + 1, data))
-        self._upload_all()
-
-    def _upload_all(self):
-        if not self.fragments:
-            return
-        sid = self.session_id
-        uploaded = 0
-        for idx, data in self.fragments:
-            if upload_fragment(sid, idx, data):
-                uploaded += 1
-        if self.cancelled:
-            title = f"Флейта: прервано, {uploaded} фрагментов [sid={sid}]"
-        else:
-            title = f"Флейта: 40 мин, {uploaded} фрагментов [sid={sid}]"
-        send_to_cloud({"title": title, "is_done": True})
-
-    def _finish(self, cancelled=False):
-        self.stop_flag.set()
-        if self.timer_event:
-            self.timer_event.cancel()
-            self.timer_event = None
-        if self.blink_event:
-            self.blink_event.cancel()
-            self.blink_event = None
-        self.rec_indicator.text = ""
-        self.cancelled = cancelled
-
-        cb = self.on_done_cb
-        self.on_done_cb = None
-        self.manager.current = 'main'
-        if cb:
-            cb(cancelled)
-
-    def _cancel(self, instance):
-        self.stop_flag.set()
-        self.cancel_btn.disabled = True
-        self.hint_lbl.text = "Останавливаю запись..."
-
-        def wait_and_leave():
-            if self.recording_thread:
-                self.recording_thread.join(timeout=20)
-            Clock.schedule_once(lambda dt: self._finish(cancelled=True), 0)
-
-        threading.Thread(target=wait_and_leave, daemon=True).start()
-
-
-class CamScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.task_name = ""
-        self.steps = []
-        self.step_idx = 0
-        self.session_id = None
-        self.photos = []
-
-        layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
-
-        self.title_lbl = Label(
-            text="📸 Фотоотчёт", font_size='15sp', size_hint_y=0.15,
-            halign='center', valign='middle',
-        )
-        self.title_lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0], None)))
-        layout.add_widget(self.title_lbl)
-
-        self.hint_lbl = Label(
-            text="", font_size='12sp', size_hint_y=0.2,
-            halign='center', valign='middle',
-        )
-        self.hint_lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0], None)))
-        layout.add_widget(self.hint_lbl)
-
-        self.progress_lbl = Label(
-            text="", font_size='36sp', size_hint_y=0.2,
-            halign='center', valign='middle',
-        )
-        layout.add_widget(self.progress_lbl)
-
-        self.take_btn = Button(
-            text="📸 СДЕЛАТЬ ФОТО",
-            size_hint_y=0.15,
-            on_press=self._on_take_photo,
-        )
-        layout.add_widget(self.take_btn)
-
-        self.cancel_btn = Button(
-            text="◀ Отмена",
-            size_hint_y=0.12,
-            on_press=self._on_cancel,
-        )
-        layout.add_widget(self.cancel_btn)
-
-        self.add_widget(layout)
-
-    def start_task(self, task_name):
-        self.task_name = task_name
-        base = task_name.split(" (")[0]
-        self.steps = PHOTO_STEPS.get(base, [
-            {"title": "📸 Сфотографируй результат",
-             "hint": "Нажми «Сделать фото», когда готово",
-             "role": "photo"}
-        ])
-        self.step_idx = 0
-        self.photos = []
-        self.session_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self._update_ui()
-
-    def _update_ui(self):
-        step = self.steps[self.step_idx]
-        total = len(self.steps)
-        self.title_lbl.text = step["title"]
-        self.hint_lbl.text = step.get("hint", "")
-        self.progress_lbl.text = f"Шаг {self.step_idx + 1} / {total}"
-        if self.step_idx == 0:
-            self.take_btn.text = "📸 СДЕЛАТЬ ФОТО"
-        else:
-            self.take_btn.text = "📸 СДЕЛАТЬ ВТОРОЕ ФОТО"
-
-    def _on_take_photo(self, instance):
-        placeholder = (
-            f"placeholder photo for {self.task_name} "
-            f"step={self.step_idx} session={self.session_id}"
-        ).encode("utf-8")
-
-        role = self.steps[self.step_idx]["role"]
-        self.photos.append((role, placeholder))
-
-        self.step_idx += 1
-        if self.step_idx >= len(self.steps):
-            self._finish()
-        else:
-            self._update_ui()
-
-    def _finish(self):
-        sid = self.session_id
-        threading.Thread(
-            target=self._upload_and_send,
-            args=(sid, list(self.photos), self.task_name),
-            daemon=True,
-        ).start()
-
-        main = self.manager.get_screen('main')
-        main.mark_photo_done(self.task_name)
-        main.status_lbl.text = "📸 Отчёт отправлен маме!"
-        self.manager.current = 'main'
-
-    @staticmethod
-    def _upload_and_send(sid, photos, task_name):
-        for role, data in photos:
-            upload_photo(sid, role, data)
-
-        clean = task_name.replace("🎒 ", "").replace("👗 ", "").replace("🧹 ", "")
-        title = f"Фотоотчет: {clean} [sid={sid}]"
-        send_to_cloud({"title": title, "is_done": True})
-
-    def _on_cancel(self, instance):
-        self.task_name = ""
-        self.steps = []
-        self.photos = []
-        self.step_idx = 0
-        self.manager.current = 'main'
-
-
-class PinScreen(Screen):
-    CORRECT_PIN = "1234"
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        layout.add_widget(Label(text="🔒 Раздел мамы\nВведите PIN",
-                                font_size='16sp'))
-        self.pin_input = TextInput(
-            password=True, input_type='number', multiline=False,
-            halign='center', font_size='24sp', size_hint_y=0.15,
-        )
-        layout.add_widget(self.pin_input)
-        layout.add_widget(Button(text="🔓 Войти", size_hint_y=0.15,
-                                 on_press=self.try_login))
-        layout.add_widget(Button(text="◀ Назад", size_hint_y=0.15,
-                                 on_press=self.go_back))
-        self.add_widget(layout)
-
-    def try_login(self, instance):
-        if self.pin_input.text == self.CORRECT_PIN:
-            self.pin_input.text = ""
-            self.manager.current = 'admin'
-        else:
-            self.pin_input.text = ""
-            self.pin_input.hint_text = "❌ Неверный PIN"
-
-    def go_back(self, instance):
-        self.pin_input.text = ""
-        self.manager.current = 'main'
-
-
-class AdminScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        layout.add_widget(Label(text="🛠 Панель мамы", font_size='18sp'))
-        layout.add_widget(Button(text="🔄 СБРОСИТЬ ВСЕ ГАЛОЧКИ",
-                                 size_hint_y=0.2, on_press=self.reset_day))
-        layout.add_widget(Button(text="📋 РАСПИСАНИЕ НА ЗАВТРА",
-                                 size_hint_y=0.2, on_press=self.show_tomorrow))
-        layout.add_widget(Button(text="◀ Выход", size_hint_y=0.2,
-                                 on_press=self.go_back))
-        self.add_widget(layout)
-
-    def reset_day(self, instance):
-        main = self.manager.get_screen('main')
-        main.state = {"date": datetime.date.today().isoformat(),
-                      "done": [],
-                      "leftovers": main.state.get("leftovers", []),
-                      "prev_tasks": [],
-                      "lessons_sent": main.state.get("lessons_sent", [])}
-        save_state(main.state)
-        main.last_action_time = 0.0
-        main.build_day()
-        main.status_lbl.text = "План сброшен ✍️"
-        self.manager.current = 'main'
-
-    def show_tomorrow(self, instance):
-        now = datetime.datetime.now()
-        tmr = next_school_date(now.date())
-        if tmr is None:
-            text = "Завтра выходной 🎉"
-        else:
-            d = tmr.weekday()
-            subjects = SCHOOL_CHART.get(d, [])
-            music = MUSIC_CHART.get(d, [])
-            text = f"{WEEKDAYS[d]}, {tmr.strftime('%d.%m')}\n\n"
-            text += "ШКОЛА:\n" + "\n".join("• " + s for s in subjects) + "\n\n"
-            if music:
-                text += "МУЗЫКАЛКА:\n" + "\n".join("• " + m for m in music)
-            else:
-                text += "МУЗЫКАЛКА: занятий нет"
-        popup = Popup(title="Расписание на завтра", title_size='14sp',
-                      content=Label(text=text, font_size='12sp'),
-                      size_hint=(0.9, 0.8))
-        popup.open()
-
-    def go_back(self, instance):
-        self.manager.current = 'main'
-
-
-class ChildApp(App):
-    def build(self):
-        sm = ScreenManager()
-        sm.add_widget(MainScreen(name='main'))
-        sm.add_widget(FluteScreen(name='flute'))
-        sm.add_widget(CamScreen(name='cam'))
-        sm.add_widget(PinScreen(name='pin'))
-        sm.add_widget(AdminScreen(name='admin'))
-        return sm
-
-
-if __name__ == '__main__':
-    ChildApp().run()
+// ============================================================
+// НОРМАЛИЗАЦИЯ НАЗВАНИЙ ДЛЯ СОПОСТАВЛЕНИЯ
+// ============================================================
+
+function normalizeTitle(s) {
+  if (!s) return "";
+  let out = String(s);
+  out = out.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, "");
+  out = out.replace(/^\s*(фотоотчет|фотоотчёт|хвост)\s*:?\s*/i, "");
+  out = out.replace(/\(\s*\d+\s*мин\s*\)/gi, "");
+  out = out.replace(/\d+\s*мин/gi, "");
+  out = out.replace(/\[sid=[^\]]+\]/g, "");
+  out = out.replace(/,?\s*\d+\s*фрагмент\w*/gi, "");
+  out = out.replace(/\(на Пн\)/gi, "");
+  out = out.replace(/[.,;:()\[\]]/g, " ");
+  out = out.replace(/\s+/g, " ").trim().toLowerCase();
+  return out;
+}
+
+function titlesMatch(a, b) {
+  const na = normalizeTitle(a);
+  const nb = normalizeTitle(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return na.includes(nb) || nb.includes(na);
+}
+
+// ============================================================
+// ПОИСК ЗАПИСИ ПО ПУНКТУ ПЛАНА
+// ============================================================
+
+function findRecordForPlan(planItem, records) {
+  for (const r of records) {
+    if (titlesMatch(planItem.text, r.title)) return r;
+  }
+  const keywords = ["математик", "русск", "истори", "литератур", "биолог",
+                    "географ", "иностран", "английск", "физкультур", "труд",
+                    "музык", "изобразительн", "разговор", "оркестр", "флейт",
+                    "фортепиано", "сольфеджио"];
+  const pn = normalizeTitle(planItem.text);
+  for (const kw of keywords) {
+    if (pn.includes(kw)) {
+      for (const r of records) {
+        if (normalizeTitle(r.title).includes(kw)) return r;
+      }
+    }
+  }
+  if (planItem.kind === "photo") {
+    const kw = pn.split(" ").pop();
+    if (kw && kw.length >= 4) {
+      for (const r of records) {
+        if (normalizeTitle(r.title).includes(kw)) return r;
+      }
+    }
+  }
+  return null;
+}
+
+function findRecordForLesson(lesson, records) {
+  const nameNorm = normalizeTitle(lesson.name);
+  for (const r of records) {
+    const nr = normalizeTitle(r.title);
+    if (nr.includes(nameNorm) && nr.includes(lesson.time)) return r;
+  }
+  for (const r of records) {
+    const nr = normalizeTitle(r.title);
+    if (nr.includes(nameNorm)) return r;
+  }
+  return null;
+}
+
+// ============================================================
+// ИИ-АНАЛИЗ
+// ============================================================
+
+function runAiAnalysis(title, timestamp) {
+  const t = (title || "").toLowerCase();
+  const d = new Date(timestamp);
+  for (let i = 0; i < 7; i++) {
+    d.setDate(d.getDate() + 1);
+    if (SCHOOL_CHART[jsDow(d)] && SCHOOL_CHART[jsDow(d)].length) break;
+  }
+  const dow = jsDow(d);
+  const subjects = homeworkSubjectsFor(dow);
+
+  if (t.includes("портфель")) {
+    return `🎒 Портфель на ${WEEKDAYS[dow]}.\nУчебников должно быть: ${subjects.length} (${subjects.join(", ") || "—"}).`;
+  }
+  if (t.includes("одежд")) {
+    const hasPE = (SCHOOL_CHART[dow] || []).some(s => s.toLowerCase().includes("физ"));
+    return hasPE ? "👟 Завтра ФИЗКУЛЬТУРА — проверить форму: кроссовки, штаны, футболка."
+                 : `👗 Форма на ${WEEKDAYS[dow]} заявлена Верой.`;
+  }
+  if (t.includes("комнат")) {
+    return "🧹 Уборка: сравните фото ДО и ПОСЛЕ.";
+  }
+  return "📷 Отчёт принят.";
+}
+
+// ============================================================
+// ОТРИСОВКА
+// ============================================================
+
+function makeStatus(done) {
+  const el = document.createElement("div");
+  el.className = "task-status" + (done ? " done" : "");
+  el.textContent = "✓";
+  return el;
+}
+
+function makeTimeEl(record) {
+  const t = document.createElement("div");
+  if (record && record.created_at) {
+    t.className = "task-time";
+    t.textContent = timeStr(record.created_at);
+  } else {
+    t.className = "task-time empty";
+    t.textContent = "—";
+  }
+  return t;
+}
+
+function extractSid(title) {
+  const m = (title || "").match(/sid=(\d+_\d+)/);
+  return m ? m[1] : null;
+}
+
+function buildPhotoBlock(sid, baseText) {
+  if (!sid) return null;
+  const t = (baseText || "").toLowerCase();
+  const container = document.createElement("div");
+  container.className = "photos";
+
+  const makePhoto = (role, label) => {
+    const wrap = document.createElement("div");
+    const url = `${SUPABASE_URL}/storage/v1/object/public/photo-reports/${sid}/${role}.jpg`;
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = label;
+    img.onerror = () => { wrap.style.display = "none"; };
+    wrap.appendChild(img);
+    const lbl = document.createElement("div");
+    lbl.className = "photo-label";
+    lbl.textContent = label;
+    wrap.appendChild(lbl);
+    return wrap;
+  };
+
+  const row = document.createElement("div");
+  row.className = "photo-row";
+
+  if (t.includes("комнат")) {
+    row.appendChild(makePhoto("room_before", "ДО"));
+    row.appendChild(makePhoto("room_after", "ПОСЛЕ"));
+  } else if (t.includes("портфель")) {
+    row.appendChild(makePhoto("portfolio", "Портфель"));
+  } else if (t.includes("одежд")) {
+    row.appendChild(makePhoto("clothes", "Одежда"));
+  }
+  container.appendChild(row);
+  return container;
+}
+
+function buildPlanRow(planItem, record) {
+  const row = document.createElement("div");
+  row.className = "task-row";
+
+  row.appendChild(makeStatus(!!record));
+
+  const content = document.createElement("div");
+  content.className = "task-content";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "task-title" + (record ? " done" : "");
+  titleEl.textContent = planItem.text;
+  content.appendChild(titleEl);
+
+  // Флейта — плеер
+  if (planItem.kind === "flute" && record) {
+    const sid = extractSid(record.title);
+    const fragMatch = (record.title || "").match(/(\d+)\s+фрагмент/);
+    if (sid && fragMatch) {
+      const n = parseInt(fragMatch[1]);
+      const player = document.createElement("div");
+      player.className = "task-player";
+      for (let i = 1; i <= n; i++) {
+        const fname = `frag_${String(i).padStart(2, "0")}.flac`;
+        const url = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/${fname}`;
+        const frag = document.createElement("div");
+        frag.className = "frag";
+        const label = document.createElement("span");
+        label.textContent = `Фрагмент ${i}`;
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "none";
+        audio.src = url;
+        frag.appendChild(label);
+        frag.appendChild(audio);
+        player.appendChild(frag);
+      }
+      content.appendChild(player);
+    }
+  }
+
+  // Фотоотчёты — фото + ИИ
+  if (planItem.kind === "photo" && record) {
+    const sid = extractSid(record.title);
+    const block = buildPhotoBlock(sid, planItem.text);
+    if (block) content.appendChild(block);
+
+    const ai = document.createElement("div");
+    ai.className = "task-ai";
+    ai.textContent = runAiAnalysis(record.title, record.created_at);
+    content.appendChild(ai);
+  }
+
+  row.appendChild(content);
+  row.appendChild(makeTimeEl(record));
+  return row;
+}
+
+function buildLessonRow(lesson, record) {
+  const row = document.createElement("div");
+  row.className = "task-row";
+  row.appendChild(makeStatus(!!record));
+
+  const content = document.createElement("div");
+  content.className = "task-content";
+  const titleEl = document.createElement("div");
+  titleEl.className = "task-title" + (record ? " done" : "");
+  titleEl.textContent = lesson.text;
+  content.appendChild(titleEl);
+  row.appendChild(content);
+  row.appendChild(makeTimeEl(record));
+  return row;
+}
+
+function addSectionHeader(container, text, cls) {
+  const el = document.createElement("div");
+  el.className = "section-title " + cls;
+  el.textContent = text;
+  container.appendChild(el);
+}
+
+function renderToday(records, container) {
+  const now = new Date();
+  const todayStr = now.toDateString();
+
+  const todayRecords = records.filter(r =>
+    new Date(r.created_at).toDateString() === todayStr
+  );
+
+  const head = document.createElement("div");
+  head.className = "day-head";
+  const dayName = document.createElement("div");
+  dayName.className = "day-name";
+  dayName.textContent = `📅 Сегодня · ${WEEKDAYS[jsDow(now)]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+  head.appendChild(dayName);
+  container.appendChild(head);
+
+  const plan = buildTodayPlan(now);
+  let doneCount = 0;
+  const matchedRecords = new Set();
+
+  const school = [];
+  const music = [];
+  const base = [];
+  plan.forEach(item => {
+    const rec = findRecordForPlan(item, todayRecords);
+    if (rec) {
+      doneCount++;
+      matchedRecords.add(rec.id);
+    }
+    const row = buildPlanRow(item, rec);
+    if (item.section === "school") school.push(row);
+    else if (item.section === "music") music.push(row);
+    else base.push(row);
+  });
+
+  if (school.length) {
+    addSectionHeader(container, "📚 Учёба", "section-school");
+    school.forEach(r => container.appendChild(r));
+  }
+  if (music.length) {
+    addSectionHeader(container, "🎼 Музыкальная домашка", "section-music");
+    music.forEach(r => container.appendChild(r));
+  }
+  if (base.length) {
+    addSectionHeader(container, "🏠 Бытовые дела", "section-base");
+    base.forEach(r => container.appendChild(r));
+  }
+
+  const progress = document.createElement("span");
+  progress.className = "day-progress";
+  progress.textContent = `${doneCount} / ${plan.length}`;
+  dayName.appendChild(progress);
+
+  const lessons = buildTodayLessons(now);
+  if (lessons.length) {
+    addSectionHeader(container, "🎼 Уроки музыки сегодня", "section-lessons");
+    lessons.forEach(l => {
+      const rec = findRecordForLesson(l, todayRecords);
+      if (rec) matchedRecords.add(rec.id);
+      container.appendChild(buildLessonRow(l, rec));
+    });
+  }
+
+  const orphans = todayRecords.filter(r => !matchedRecords.has(r.id));
+  if (orphans.length) {
+    addSectionHeader(container, "📋 Прочее", "section-other");
+    orphans.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.appendChild(makeStatus(true));
+      const content = document.createElement("div");
+      content.className = "task-content";
+      const t = document.createElement("div");
+      t.className = "task-title done";
+      t.textContent = r.title;
+      content.appendChild(t);
+      row.appendChild(content);
+      row.appendChild(makeTimeEl(r));
+      container.appendChild(row);
+    });
+  }
+}
+
+function renderHistory(records, container) {
+  const byDay = {};
+  records.forEach(r => {
+    const k = dayKey(r.created_at);
+    if (!byDay[k]) byDay[k] = { date: r.created_at, items: [] };
+    byDay[k].items.push(r);
+  });
+
+  const days = Object.values(byDay).sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (!days.length) {
+    container.innerHTML = '<div class="empty">Записей пока нет.</div>';
+    return;
+  }
+
+  days.forEach(day => {
+    const head = document.createElement("div");
+    head.className = "day-head";
+    const d = new Date(day.date);
+    const dayName = document.createElement("div");
+    dayName.className = "day-name";
+    dayName.textContent = `📅 ${dayLabel(d)}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    head.appendChild(dayName);
+    container.appendChild(head);
+
+    day.items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    day.items.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.appendChild(makeStatus(true));
+      const content = document.createElement("div");
+      content.className = "task-content";
+      const t = document.createElement("div");
+      t.className = "task-title done";
+      t.textContent = r.title;
+      content.appendChild(t);
+
+      // Фото и плеер тоже покажем в истории
+      const lower = (r.title || "").toLowerCase();
+      if (lower.startsWith("флейта")) {
+        const sid = extractSid(r.title);
+        const fragMatch = (r.title || "").match(/(\d+)\s+фрагмент/);
+        if (sid && fragMatch) {
+          const n = parseInt(fragMatch[1]);
+          const player = document.createElement("div");
+          player.className = "task-player";
+          for (let i = 1; i <= n; i++) {
+            const fname = `frag_${String(i).padStart(2, "0")}.flac`;
+            const url = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/${fname}`;
+            const frag = document.createElement("div");
+            frag.className = "frag";
+            const label = document.createElement("span");
+            label.textContent = `Фрагмент ${i}`;
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.preload = "none";
+            audio.src = url;
+            frag.appendChild(label);
+            frag.appendChild(audio);
+            player.appendChild(frag);
+          }
+          content.appendChild(player);
+        }
+      } else if (lower.startsWith("фотоотчет") || lower.startsWith("фотоотчёт")) {
+        const sid = extractSid(r.title);
+        const block = buildPhotoBlock(sid, r.title);
+        if (block) content.appendChild(block);
+      }
+
+      row.appendChild(content);
+      row.appendChild(makeTimeEl(r));
+      container.appendChild(row);
+    });
+  });
+}
+
+// ============================================================
+// ЗАГРУЗКА
+// ============================================================
+
+function toggleHistory() {
+  showHistory = !showHistory;
+  document.getElementById("hist-btn").textContent =
+    showHistory ? "📅 Только сегодня" : "📜 Показать всю историю";
+  loadTasks();
+}
+
+async function loadTasks() {
+  const logBox = document.getElementById("log-box");
+  try {
+    const res = await fetch(TABLE_URL, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+    });
+    let records = await res.json();
+    if (!res.ok || !Array.isArray(records)) {
+      logBox.innerHTML = '<div class="empty">Ошибка доступа к облаку.</div>';
+      return;
+    }
+
+    logBox.innerHTML = "";
+    logBox.className = "";
+
+    if (showHistory) {
+      renderHistory(records, logBox);
+    } else {
+      renderToday(records, logBox);
+    }
+  } catch (e) {
+    console.error(e);
+    logBox.innerHTML = '<div class="empty">Ошибка чтения облака.</div>';
+  }
+}
+
+loadTasks();
+setInterval(loadTasks, 60000);
+</script>
+</body>
+</html>
