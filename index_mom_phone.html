@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Пульт Мамы: Контроль Веры</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background:#121212; color:#fff; padding:15px; margin:0; }
+  h2 { color:#00ffb3; text-align:center; font-size:18px; margin-bottom:16px; }
+  .btn { display:block; width:100%; background:#00ffb3; color:#121212; border:none;
+         padding:12px; font-weight:bold; border-radius:8px; font-size:15px;
+         cursor:pointer; margin-bottom:10px; }
+  .btn-alt { background:#333; color:#fff; }
+
+  .summary-box { background:#0e2b22; border-radius:8px; padding:12px 14px;
+                 margin-bottom:12px; border-left:4px solid #00ffb3; }
+  .summary-box.today { background:#122a3a; border-left-color:#67b3ff; }
+  .summary-title { font-size:14px; font-weight:bold; color:#00ffb3;
+                   margin-bottom:8px; }
+  .summary-box.today .summary-title { color:#a7d4ff; }
+  .summary-line { font-size:13px; margin-bottom:3px; color:#ddd; }
+  .summary-line b { color:#fff; }
+  .summary-music { color:#ffd27f; }
+  .summary-lesson { font-size:13px; margin-bottom:3px; color:#ddd; }
+  .summary-lesson.done { color:#7acc96; }
+
+  .day-head { display:flex; justify-content:space-between; align-items:baseline;
+              margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #00ffb3; }
+  .day-name { font-size:15px; font-weight:bold; color:#00ffb3; }
+  .day-progress { font-size:12px; color:#888; margin-left:10px; }
+
+  .section-title { font-size:12px; text-transform:uppercase;
+                   letter-spacing:0.5px; margin:16px 0 8px 0;
+                   padding-left:2px; }
+  .section-school { color:#a7d4ff; }
+  .section-music  { color:#ffd27f; }
+  .section-base   { color:#cccccc; }
+  .section-lessons{ color:#c5a3ff; }
+
+  .task-row { display:flex; gap:8px; padding:8px 0;
+              border-bottom:1px solid #262626; align-items:flex-start; }
+  .task-row:last-child { border-bottom:none; }
+  .task-status { flex:0 0 18px; width:18px; height:18px; margin-top:2px;
+                 border:2px solid #444; border-radius:4px;
+                 display:flex; align-items:center; justify-content:center;
+                 font-size:13px; color:transparent; }
+  .task-status.done { background:#00ffb3; border-color:#00ffb3; color:#121212; }
+  .task-content { flex:1; min-width:0; }
+  .task-title { font-size:13px; color:#ddd; word-break:break-word; }
+  .task-title.done { color:#888; }
+  .task-time { flex:0 0 48px; font-size:12px; color:#00ffb3; text-align:right;
+               padding-top:2px; font-variant-numeric:tabular-nums;
+               font-weight:bold; }
+  .task-time.empty { color:#333; }
+
+  .task-ai { font-size:12px; color:#ffcc00; margin-top:4px;
+             white-space:pre-line; line-height:1.4; }
+
+  .photos { margin-top:6px; }
+  .photo-row { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; }
+  .photo-row img { max-width:120px; max-height:120px; border-radius:6px;
+                   border:1px solid #333; background:#000; }
+  .photo-label { font-size:11px; color:#888; margin-top:2px; }
+
+  .task-player { margin-top:6px; }
+  .frag { display:flex; align-items:center; gap:6px; font-size:11px;
+          color:#00b3ff; margin-top:3px; }
+  .frag audio { flex:1; height:28px; }
+
+  .empty { color:#777; text-align:center; padding:20px; }
+</style>
+</head>
+<body>
+
+<h2>📱 Пульт Мамы: Контроль Веры</h2>
+<button class="btn" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
+<button class="btn btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
+<div id="summary-box"></div>
+<div id="log-box" class="empty">Ожидание загрузки данных...</div>
+
+<script>
+// ============================================================
+// КОНФИГУРАЦИЯ
+// ============================================================
+
+const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
+const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
+const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks?select=*&order=created_at.desc&limit=300";
+
+const SCHOOL_CHART = {
+  0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
+  1: ["Разговоры о важном*", "Русский язык", "Математика",
+      "Физическая культура*", "Биология", "Изобразительное искусство*"],
+  2: ["Иностранный язык", "Русский язык", "История",
+      "Литература", "География", "Математика"],
+  3: ["Труд*", "Труд*", "Математика", "Физическая культура*", "Русский язык"],
+  4: ["История", "Математика", "Русский язык", "Литература", "Музыка*"],
+  5: [], 6: []
+};
+
+const MUSIC_CHART = {
+  0: ["🪈 Специальность (17:45)"],
+  1: ["🎼 Муз. литература (14:45)"],
+  2: ["🎹 Фортепиано (18:05)", "🪈 Специальность (18:30)"],
+  3: ["👥 Ансамбль (17:00)"],
+  4: [],
+  5: ["🎻 Оркестр (15:00)"],
+  6: ["📝 Сольфеджио (11:00)", "🎤 Хор (13:35)"]
+};
+
+const DAILY_MUSIC_HOMEWORK = {
+  0: [{ text: "🎻 Оркестр: партии (40 мин)", kind: "flute" }],
+  1: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" }],
+  2: [],
+  3: [{ text: "📖 Муз. литература (30 мин)", kind: "study" }],
+  4: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" },
+      { text: "🎻 Оркестр: партии (40 мин)", kind: "flute" }],
+  5: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" },
+      { text: "📝 Сольфеджио (30 мин)", kind: "study" }],
+  6: [{ text: "🎵 Флейта (40 мин)", kind: "flute" },
+      { text: "🎹 Фортепиано (20 мин)", kind: "study" }]
+};
+
+const HOMEWORK_MOVES = {
+  "2|История": 3, "2|Литература": 3,
+  "4|История": 5, "4|Литература": 5
+};
+
+const OLYMPIADS = {
+  "2026-09-15": "История", "2026-09-17": "Русский язык",
+  "2026-09-28": "Английский язык", "2026-10-08": "Биология",
+  "2026-10-14": "Математика", "2026-10-20": "География"
+};
+
+const WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
+const MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+
+let showHistory = false;
+
+// ============================================================
+// ХЕЛПЕРЫ
+// ============================================================
+
+const jsDow = d => (d.getDay() + 6) % 7;
+
+function homeworkSubjectsFor(dow) {
+  return (SCHOOL_CHART[dow] || []).filter(s => !s.includes("*"));
+}
+
+function nextSchoolDate(fromDate) {
+  let d = new Date(fromDate);
+  for (let i = 0; i < 7; i++) {
+    d.setDate(d.getDate() + 1);
+    if (SCHOOL_CHART[jsDow(d)] && SCHOOL_CHART[jsDow(d)].length) return new Date(d);
+  }
+  return null;
+}
+
+function daysFromToday(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const o = new Date(y, m - 1, d);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((o - t) / 86400000);
+}
+
+function dayKey(d) {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${x.getMonth()+1}-${x.getDate()}`;
+}
+
+function dayLabel(d) {
+  const x = new Date(d);
+  const today = new Date();
+  if (dayKey(x) === dayKey(today)) return "Сегодня";
+  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  if (dayKey(x) === dayKey(yest)) return "Вчера";
+  return WEEKDAYS[jsDow(x)];
+}
+
+function timeStr(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ============================================================
+// СВОДКА: СЕГОДНЯ + ЗАВТРА
+// ============================================================
+
+function parseLesson(s) {
+  const m = s.match(/\S+\s+(.+?)\s+\((\d{1,2}):(\d{2})\)/);
+  if (!m) return null;
+  return { name: m[1].trim(), time: `${m[2].padStart(2,"0")}:${m[3]}`, raw: s };
+}
+
+function renderSummary(records) {
+  const box = document.getElementById("summary-box");
+  const now = new Date();
+  const todayStr = now.toDateString();
+  const todayRecords = records.filter(r => new Date(r.created_at).toDateString() === todayStr);
+
+  let html = "";
+
+  // ===== СЕГОДНЯ =====
+  const dowToday = jsDow(now);
+  const subjectsToday = SCHOOL_CHART[dowToday] || [];
+  const musicToday = MUSIC_CHART[dowToday] || [];
+  const cleanToday = subjectsToday.map(s => s.replace("*", ""));
+
+  html += `<div class="summary-box today">
+    <div class="summary-title">📍 Сегодня, ${WEEKDAYS[dowToday]} (${now.getDate()} ${MONTHS[now.getMonth()]})</div>
+    <div class="summary-line"><b>Школа:</b> ${subjectsToday.length} уроков</div>
+    <div class="summary-line">${cleanToday.join(", ") || "—"}</div>`;
+
+  if (musicToday.length) {
+    html += `<div class="summary-line summary-music" style="margin-top:6px"><b>🎼 Музыкалка:</b></div>`;
+    musicToday.forEach(l => {
+      const parsed = parseLesson(l);
+      let done = false;
+      if (parsed) {
+        done = todayRecords.some(r => {
+          const nr = (r.title || "").toLowerCase();
+          return nr.includes(parsed.name.toLowerCase()) && nr.includes(parsed.time);
+        });
+      }
+      const icon = done ? "✅" : "○";
+      html += `<div class="summary-lesson ${done ? 'done' : ''}">${icon} ${l}</div>`;
+    });
+  } else {
+    html += `<div class="summary-line summary-music" style="color:#888">🎼 Музыкалка: занятий нет</div>`;
+  }
+
+  html += `</div>`;
+
+  // ===== ЗАВТРА =====
+  const tmr = nextSchoolDate(now);
+  if (tmr) {
+    const dow = jsDow(tmr);
+    const subjects = SCHOOL_CHART[dow] || [];
+    const books = homeworkSubjectsFor(dow);
+    const music = MUSIC_CHART[dow] || [];
+    const cleanSubjects = subjects.map(s => s.replace("*", ""));
+
+    html += `<div class="summary-box">
+      <div class="summary-title">📅 Завтра, ${WEEKDAYS[dow]} (${tmr.getDate()} ${MONTHS[tmr.getMonth()]})</div>
+      <div class="summary-line"><b>Школа:</b> ${subjects.length} уроков</div>
+      <div class="summary-line">${cleanSubjects.join(", ") || "—"}</div>
+      <div class="summary-line"><b>📚 Учебников:</b> ${books.length} (${books.join(", ") || "—"})</div>`;
+
+    if (music.length) {
+      html += `<div class="summary-line summary-music" style="margin-top:6px"><b>🎼 Музыкалка:</b></div>`;
+      music.forEach(l => {
+        html += `<div class="summary-lesson">○ ${l}</div>`;
+      });
+    } else {
+      html += `<div class="summary-line summary-music" style="color:#888">🎼 Занятий нет</div>`;
+    }
+    html += `</div>`;
+  }
+
+  box.innerHTML = html;
+}
+
+// ============================================================
+// ПЛАН ДНЯ
+// ============================================================
+
+function buildTodayPlan(date) {
+  const dow = jsDow(date);
+
+  const olymp = [];
+  for (const [dateStr, name] of Object.entries(OLYMPIADS)) {
+    const delta = daysFromToday(dateStr);
+    if (delta === 1 || delta === 2) {
+      olymp.push({
+        text: `🏆 Олимпиада (${name}, 40 мин)`,
+        kind: "study", section: "school"
+      });
+    }
+  }
+
+  const school = [];
+  for (let d = 0; d < 7; d++) {
+    for (const subj of homeworkSubjectsFor(d)) {
+      const target = HOMEWORK_MOVES[`${d}|${subj}`] ?? d;
+      if (target === dow) {
+        school.push({
+          text: `📚 Домашка: ${subj}`,
+          kind: "study", section: "school"
+        });
+      }
+    }
+  }
+
+  const music = (DAILY_MUSIC_HOMEWORK[dow] || []).map(m => ({
+    text: m.text, kind: m.kind, section: "music"
+  }));
+
+  const base = [];
+  if (dow <= 4) {
+    base.push({
+      text: dow === 4 ? "🎒 Собрать портфель (на Пн)" : "🎒 Собрать портфель",
+      kind: "photo", section: "base"
+    });
+    base.push({
+      text: dow === 4 ? "👗 Приготовить одежду (на Пн)" : "👗 Приготовить одежду",
+      kind: "photo", section: "base"
+    });
+  }
+  base.push({ text: "🧹 Прибрать в комнате", kind: "photo", section: "base" });
+
+  return [...olymp, ...school, ...music, ...base];
+}
+
+// ============================================================
+// НОРМАЛИЗАЦИЯ И ПОИСК
+// ============================================================
+
+function normalizeTitle(s) {
+  if (!s) return "";
+  let out = String(s);
+  out = out.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, "");
+  out = out.replace(/^\s*(фотоотчет|фотоотчёт|хвост)\s*:?\s*/i, "");
+  out = out.replace(/\(\s*\d+\s*мин\s*\)/gi, "");
+  out = out.replace(/\d+\s*мин/gi, "");
+  out = out.replace(/\[sid=[^\]]+\]/g, "");
+  out = out.replace(/,?\s*\d+\s*фрагмент\w*/gi, "");
+  out = out.replace(/\(на Пн\)/gi, "");
+  out = out.replace(/[.,;:()\[\]]/g, " ");
+  out = out.replace(/\s+/g, " ").trim().toLowerCase();
+  return out;
+}
+
+function titlesMatch(a, b) {
+  const na = normalizeTitle(a);
+  const nb = normalizeTitle(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return na.includes(nb) || nb.includes(na);
+}
+
+function findRecordForPlan(planItem, records) {
+  for (const r of records) {
+    if (titlesMatch(planItem.text, r.title)) return r;
+  }
+  const keywords = ["математик", "русск", "истори", "литератур", "биолог",
+                    "географ", "иностран", "английск", "физкультур", "труд",
+                    "музык", "изобразительн", "разговор", "оркестр", "флейт",
+                    "фортепиано", "сольфеджио"];
+  const pn = normalizeTitle(planItem.text);
+  for (const kw of keywords) {
+    if (pn.includes(kw)) {
+      for (const r of records) {
+        if (normalizeTitle(r.title).includes(kw)) return r;
+      }
+    }
+  }
+  if (planItem.kind === "photo") {
+    const kw = pn.split(" ").pop();
+    if (kw && kw.length >= 4) {
+      for (const r of records) {
+        if (normalizeTitle(r.title).includes(kw)) return r;
+      }
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// ИИ-АНАЛИЗ
+// ============================================================
+
+function runAiAnalysis(title, timestamp) {
+  const t = (title || "").toLowerCase();
+  const tmr = nextSchoolDate(new Date(timestamp));
+  if (!tmr) return "📷 Отчёт принят.";
+  const dow = jsDow(tmr);
+  const subjects = homeworkSubjectsFor(dow);
+
+  if (t.includes("портфель")) {
+    return `🎒 Портфель на ${WEEKDAYS[dow]}.\nУчебников должно быть: ${subjects.length} (${subjects.join(", ") || "—"}).`;
+  }
+  if (t.includes("одежд")) {
+    const hasPE = (SCHOOL_CHART[dow] || []).some(s => s.toLowerCase().includes("физ"));
+    return hasPE ? "👟 Завтра ФИЗКУЛЬТУРА — проверить форму."
+                 : `👗 Форма на ${WEEKDAYS[dow]} заявлена.`;
+  }
+  if (t.includes("комнат")) {
+    return "🧹 Уборка: сравните фото ДО и ПОСЛЕ.";
+  }
+  return "📷 Отчёт принят.";
+}
+
+// ============================================================
+// ОТРИСОВКА
+// ============================================================
+
+function makeStatus(done) {
+  const el = document.createElement("div");
+  el.className = "task-status" + (done ? " done" : "");
+  el.textContent = "✓";
+  return el;
+}
+
+function makeTimeEl(record) {
+  const t = document.createElement("div");
+  if (record && record.created_at) {
+    t.className = "task-time";
+    t.textContent = timeStr(record.created_at);
+  } else {
+    t.className = "task-time empty";
+    t.textContent = "—";
+  }
+  return t;
+}
+
+function extractSid(title) {
+  const m = (title || "").match(/sid=(\d+_\d+)/);
+  return m ? m[1] : null;
+}
+
+function buildPhotoBlock(sid, baseText) {
+  if (!sid) return null;
+  const t = (baseText || "").toLowerCase();
+  const container = document.createElement("div");
+  container.className = "photos";
+
+  const makePhoto = (role, label) => {
+    const wrap = document.createElement("div");
+    const url = `${SUPABASE_URL}/storage/v1/object/public/photo-reports/${sid}/${role}.jpg`;
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = label;
+    img.onerror = () => { wrap.style.display = "none"; };
+    wrap.appendChild(img);
+    const lbl = document.createElement("div");
+    lbl.className = "photo-label";
+    lbl.textContent = label;
+    wrap.appendChild(lbl);
+    return wrap;
+  };
+
+  const row = document.createElement("div");
+  row.className = "photo-row";
+
+  if (t.includes("комнат")) {
+    row.appendChild(makePhoto("room_before", "ДО"));
+    row.appendChild(makePhoto("room_after", "ПОСЛЕ"));
+  } else if (t.includes("портфель")) {
+    row.appendChild(makePhoto("portfolio", "Портфель"));
+  } else if (t.includes("одежд")) {
+    row.appendChild(makePhoto("clothes", "Одежда"));
+  }
+  container.appendChild(row);
+  return container;
+}
+
+function buildPlanRow(planItem, record) {
+  const row = document.createElement("div");
+  row.className = "task-row";
+  row.appendChild(makeStatus(!!record));
+
+  const content = document.createElement("div");
+  content.className = "task-content";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "task-title" + (record ? " done" : "");
+  titleEl.textContent = planItem.text;
+  content.appendChild(titleEl);
+
+  if (planItem.kind === "flute" && record) {
+    const sid = extractSid(record.title);
+    const fragMatch = (record.title || "").match(/(\d+)\s+фрагмент/);
+    if (sid && fragMatch) {
+      const n = parseInt(fragMatch[1]);
+      const player = document.createElement("div");
+      player.className = "task-player";
+      for (let i = 1; i <= n; i++) {
+        // Ищем и .webm, и .flac, и .m4a — на случай старых записей
+        const exts = ["webm", "flac", "m4a"];
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "none";
+        // Первая попытка — webm
+        const url0 = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/frag_${String(i).padStart(2, "0")}.webm`;
+        audio.src = url0;
+        audio.addEventListener("error", function handler() {
+          audio.removeEventListener("error", handler);
+          // пробуем flac
+          const url1 = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/frag_${String(i).padStart(2, "0")}.flac`;
+          audio.src = url1;
+        });
+
+        const frag = document.createElement("div");
+        frag.className = "frag";
+        const label = document.createElement("span");
+        label.textContent = `Фрагмент ${i}`;
+        frag.appendChild(label);
+        frag.appendChild(audio);
+        player.appendChild(frag);
+      }
+      content.appendChild(player);
+    }
+  }
+
+  if (planItem.kind === "photo" && record) {
+    const sid = extractSid(record.title);
+    const block = buildPhotoBlock(sid, planItem.text);
+    if (block) content.appendChild(block);
+
+    const ai = document.createElement("div");
+    ai.className = "task-ai";
+    ai.textContent = runAiAnalysis(record.title, record.created_at);
+    content.appendChild(ai);
+  }
+
+  row.appendChild(content);
+  row.appendChild(makeTimeEl(record));
+  return row;
+}
+
+function addSectionHeader(container, text, cls) {
+  const el = document.createElement("div");
+  el.className = "section-title " + cls;
+  el.textContent = text;
+  container.appendChild(el);
+}
+
+function renderToday(records, container) {
+  const now = new Date();
+  const todayStr = now.toDateString();
+
+  const todayRecords = records.filter(r =>
+    new Date(r.created_at).toDateString() === todayStr
+  );
+
+  const head = document.createElement("div");
+  head.className = "day-head";
+  const dayName = document.createElement("div");
+  dayName.className = "day-name";
+  dayName.textContent = `📅 Дела на сегодня · ${WEEKDAYS[jsDow(now)]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+  head.appendChild(dayName);
+  container.appendChild(head);
+
+  const plan = buildTodayPlan(now);
+  let doneCount = 0;
+
+  const school = [];
+  const music = [];
+  const base = [];
+  plan.forEach(item => {
+    const rec = findRecordForPlan(item, todayRecords);
+    if (rec) doneCount++;
+    const row = buildPlanRow(item, rec);
+    if (item.section === "school") school.push(row);
+    else if (item.section === "music") music.push(row);
+    else base.push(row);
+  });
+
+  if (school.length) {
+    addSectionHeader(container, "📚 Учёба", "section-school");
+    school.forEach(r => container.appendChild(r));
+  }
+  if (music.length) {
+    addSectionHeader(container, "🎼 Музыкальная домашка", "section-music");
+    music.forEach(r => container.appendChild(r));
+  }
+  if (base.length) {
+    addSectionHeader(container, "🏠 Бытовые дела", "section-base");
+    base.forEach(r => container.appendChild(r));
+  }
+
+  const progress = document.createElement("span");
+  progress.className = "day-progress";
+  progress.textContent = `${doneCount} / ${plan.length}`;
+  dayName.appendChild(progress);
+}
+
+function renderHistory(records, container) {
+  const byDay = {};
+  records.forEach(r => {
+    const k = dayKey(r.created_at);
+    if (!byDay[k]) byDay[k] = { date: r.created_at, items: [] };
+    byDay[k].items.push(r);
+  });
+
+  const days = Object.values(byDay).sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (!days.length) {
+    container.innerHTML = '<div class="empty">Записей пока нет.</div>';
+    return;
+  }
+
+  days.forEach(day => {
+    const head = document.createElement("div");
+    head.className = "day-head";
+    const d = new Date(day.date);
+    const dayName = document.createElement("div");
+    dayName.className = "day-name";
+    dayName.textContent = `📅 ${dayLabel(d)}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    head.appendChild(dayName);
+    container.appendChild(head);
+
+    day.items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    day.items.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.appendChild(makeStatus(true));
+      const content = document.createElement("div");
+      content.className = "task-content";
+      const t = document.createElement("div");
+      t.className = "task-title done";
+      t.textContent = r.title;
+      content.appendChild(t);
+
+      const lower = (r.title || "").toLowerCase();
+      if (lower.startsWith("флейта") || lower.startsWith("оркестр")) {
+        const sid = extractSid(r.title);
+        const fragMatch = (r.title || "").match(/(\d+)\s+фрагмент/);
+        if (sid && fragMatch) {
+          const n = parseInt(fragMatch[1]);
+          const player = document.createElement("div");
+          player.className = "task-player";
+          for (let i = 1; i <= n; i++) {
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.preload = "none";
+            const urlWebm = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/frag_${String(i).padStart(2, "0")}.webm`;
+            const urlFlac = `${SUPABASE_URL}/storage/v1/object/public/flute-recordings/${sid}/frag_${String(i).padStart(2, "0")}.flac`;
+            audio.src = urlWebm;
+            audio.addEventListener("error", function handler() {
+              audio.removeEventListener("error", handler);
+              audio.src = urlFlac;
+            });
+            const frag = document.createElement("div");
+            frag.className = "frag";
+            const label = document.createElement("span");
+            label.textContent = `Фрагмент ${i}`;
+            frag.appendChild(label);
+            frag.appendChild(audio);
+            player.appendChild(frag);
+          }
+          content.appendChild(player);
+        }
+      } else if (lower.startsWith("фотоотчет") || lower.startsWith("фотоотчёт")) {
+        const sid = extractSid(r.title);
+        const block = buildPhotoBlock(sid, r.title);
+        if (block) content.appendChild(block);
+      }
+
+      row.appendChild(content);
+      row.appendChild(makeTimeEl(r));
+      container.appendChild(row);
+    });
+  });
+}
+
+// ============================================================
+// ЗАГРУЗКА
+// ============================================================
+
+function toggleHistory() {
+  showHistory = !showHistory;
+  document.getElementById("hist-btn").textContent =
+    showHistory ? "📅 Только сегодня" : "📜 Показать всю историю";
+  loadTasks();
+}
+
+async function loadTasks() {
+  const logBox = document.getElementById("log-box");
+  try {
+    const res = await fetch(TABLE_URL, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+    });
+    let records = await res.json();
+    if (!res.ok || !Array.isArray(records)) {
+      logBox.innerHTML = '<div class="empty">Ошибка доступа к облаку.</div>';
+      return;
+    }
+
+    // Сводка сверху — всегда
+    renderSummary(records);
+
+    logBox.innerHTML = "";
+    logBox.className = "";
+
+    if (showHistory) {
+      renderHistory(records, logBox);
+    } else {
+      renderToday(records, logBox);
+    }
+  } catch (e) {
+    console.error(e);
+    logBox.innerHTML = '<div class="empty">Ошибка чтения облака.</div>';
+  }
+}
+
+loadTasks();
+setInterval(loadTasks, 60000);
+</script>
+</body>
+</html>
