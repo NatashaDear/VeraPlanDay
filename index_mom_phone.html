@@ -18,7 +18,7 @@
   .summary-box.today { background:#122a3a; border-left-color:#67b3ff; }
   .summary-title { font-size:14px; font-weight:bold; color:#00ffb3;
                    margin-bottom:8px; display:flex; justify-content:space-between;
-                   align-items:center; }
+                   align-items:center; gap:8px; }
   .summary-box.today .summary-title { color:#a7d4ff; }
   .edit-btn { background:#0e2b22; color:#00ffb3; border:1px solid #00ffb3;
               padding:4px 10px; border-radius:6px; font-size:12px;
@@ -32,6 +32,28 @@
   .summary-lesson.done { color:#7acc96; }
   .override-badge { font-size:11px; color:#ffcc00; margin-left:6px;
                     font-weight:normal; }
+
+  .notes-box { background:#221c0e; border-radius:8px; padding:12px 14px;
+               margin-bottom:12px; border-left:4px solid #ffcc00; }
+  .notes-title { font-size:14px; font-weight:bold; color:#ffcc00;
+                 margin-bottom:8px; display:flex; justify-content:space-between;
+                 align-items:center; }
+  .notes-add-btn { background:#221c0e; color:#ffcc00; border:1px solid #ffcc00;
+                   padding:4px 10px; border-radius:6px; font-size:12px;
+                   font-weight:bold; cursor:pointer; font-family:inherit; }
+  .note-item { display:flex; gap:8px; align-items:flex-start;
+               padding:8px 0; border-bottom:1px solid #332810; }
+  .note-item:last-child { border-bottom:none; }
+  .note-subject { flex:0 0 130px; font-weight:bold; color:#ffcc00; font-size:13px; }
+  .note-text { flex:1; font-size:13px; color:#ddd; word-break:break-word;
+               line-height:1.4; }
+  .note-text a { color:#00b3ff; word-break:break-all; }
+  .note-actions { flex:0 0 auto; display:flex; gap:4px; }
+  .note-btn { background:transparent; border:1px solid #555; color:#ccc;
+              padding:2px 8px; border-radius:4px; font-size:11px;
+              cursor:pointer; font-family:inherit; }
+  .note-btn.danger { border-color:#a33; color:#ff8080; }
+  .note-empty { color:#888; font-size:12px; text-align:center; padding:6px 0; }
 
   .day-head { display:flex; justify-content:space-between; align-items:baseline;
               margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #00ffb3; }
@@ -56,6 +78,9 @@
   .task-content { flex:1; min-width:0; }
   .task-title { font-size:13px; color:#ddd; word-break:break-word; }
   .task-title.done { color:#888; }
+  .task-note { font-size:12px; color:#ffcc00; margin-top:4px;
+               line-height:1.4; word-break:break-word; }
+  .task-note a { color:#00b3ff; word-break:break-all; }
   .task-time { flex:0 0 48px; font-size:12px; color:#00ffb3; text-align:right;
                padding-top:2px; font-variant-numeric:tabular-nums;
                font-weight:bold; }
@@ -82,33 +107,38 @@
            z-index:100; backdrop-filter:blur(4px); }
   .modal.hidden { display:none; }
   .modal-box { background:#1a1a1a; border-radius:16px; padding:20px;
-               width:100%; max-width:400px; max-height:90vh; overflow-y:auto;
+               width:100%; max-width:440px; max-height:90vh; overflow-y:auto;
                border:1px solid #2a2a2a; }
   .modal-title { font-size:16px; font-weight:bold; color:#00ffb3;
                  margin-bottom:8px; text-align:center; }
   .modal-hint { font-size:12px; color:#888; margin-bottom:14px; text-align:center;
                 line-height:1.4; }
-  .lesson-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-  .lesson-num { flex:0 0 24px; font-size:13px; color:#888; text-align:center; }
-  .lesson-input { flex:1; padding:10px; font-size:14px;
-                  background:#0e0e0e; color:#fff; border:1px solid #333;
-                  border-radius:8px; font-family:inherit; }
+  .field-label { display:block; font-size:12px; color:#aaa;
+                 margin:10px 0 4px 4px; }
+  .field-input { width:100%; padding:10px; font-size:14px;
+                 background:#0e0e0e; color:#fff; border:1px solid #333;
+                 border-radius:8px; font-family:inherit; box-sizing:border-box; }
+  textarea.field-input { min-height:90px; resize:vertical; line-height:1.4; }
   .modal-btn { display:block; width:100%; padding:14px;
                background:#00ffb3; color:#0e0e0e; border:none;
                border-radius:10px; font-size:15px; font-weight:bold;
                margin-top:10px; cursor:pointer; font-family:inherit; }
   .modal-btn.alt { background:#333; color:#fff; }
   .modal-btn.danger { background:#ff5555; color:#fff; }
+  .lesson-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .lesson-num { flex:0 0 24px; font-size:13px; color:#888; text-align:center; }
 </style>
 </head>
 <body>
 
 <h2>📱 Пульт Мамы: Контроль Веры</h2>
-<button class="btn" onclick="loadTasks()">🔄 Проверить отметки Веры</button>
+<button class="btn" onclick="loadAll()">🔄 Проверить отметки Веры</button>
 <button class="btn btn-alt" onclick="toggleHistory()" id="hist-btn">📜 Показать всю историю</button>
 <div id="summary-box"></div>
+<div id="notes-box"></div>
 <div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
+<!-- Модалка редактора расписания -->
 <div class="modal hidden" id="edit-modal">
   <div class="modal-box">
     <div class="modal-title" id="edit-title">✏️ Уроки</div>
@@ -126,6 +156,29 @@
   </div>
 </div>
 
+<!-- Модалка ДЗ по предмету -->
+<div class="modal hidden" id="note-modal">
+  <div class="modal-box">
+    <div class="modal-title">📝 Заметка по ДЗ</div>
+    <div class="modal-hint">
+      Что задали по предмету. Можно вставить ссылку на Яндекс.Диск.<br>
+      Заметка будет видна Вере в её пульте.
+    </div>
+    <label class="field-label">Предмет</label>
+    <select class="field-input" id="note-subject">
+      <option value="">— выбери предмет —</option>
+    </select>
+    <label class="field-label">Текст задания</label>
+    <textarea class="field-input" id="note-text"
+              placeholder="Например: прочитать параграф 5, ответить на вопросы 1–3"></textarea>
+    <button class="modal-btn" id="note-save">💾 Сохранить</button>
+    <button class="modal-btn alt" id="note-cancel">Отмена</button>
+    <button class="modal-btn danger" id="note-delete" style="display:none">
+      🗑 Удалить заметку
+    </button>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // КОНФИГУРАЦИЯ
@@ -135,6 +188,7 @@ const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks?select=*&order=created_at.desc&limit=300";
 const OVERRIDES_URL = SUPABASE_URL + "/rest/v1/schedule_overrides";
+const NOTES_URL = SUPABASE_URL + "/rest/v1/homework_notes";
 
 const SCHOOL_CHART = {
   0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
@@ -179,12 +233,23 @@ const OLYMPIADS = {
   "2026-10-14": "Математика", "2026-10-20": "География"
 };
 
+// Список предметов для заметок (все, что встречаются в расписаниях)
+const ALL_SUBJECTS = [
+  "Математика", "История", "Русский язык", "Литература",
+  "Иностранный язык", "Биология", "География", "Труд",
+  "Изобразительное искусство", "Физическая культура",
+  "Разговоры о важном", "Музыка",
+  "Флейта", "Фортепиано", "Муз. литература", "Сольфеджио",
+  "Ансамбль", "Оркестр", "Хор"
+];
+
 const WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
 const MONTHS = ["января","февраля","марта","апреля","мая","июня",
                 "июля","августа","сентября","октября","ноября","декабря"];
 
 let showHistory = false;
 let overrides = {};
+let notes = {};
 
 // ============================================================
 // ХЕЛПЕРЫ
@@ -246,8 +311,21 @@ function timeStr(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderNoteText(text) {
+  const safe = escapeHtml(text);
+  return safe.replace(/(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+
 // ============================================================
-// OVERRIDES
+// ЗАГРУЗКА И СОХРАНЕНИЕ OVERRIDES
 // ============================================================
 
 async function loadOverrides() {
@@ -288,6 +366,53 @@ async function saveOverride(dateStr, subjects) {
 
 async function deleteOverride(dateStr) {
   const url = OVERRIDES_URL + "?date=eq." + dateStr;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+  });
+  return res.ok;
+}
+
+// ============================================================
+// ЗАГРУЗКА И СОХРАНЕНИЕ ЗАМЕТОК
+// ============================================================
+
+async function loadNotes() {
+  try {
+    const res = await fetch(NOTES_URL + "?select=subject,text", {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+    });
+    if (!res.ok) { notes = {}; return; }
+    const rows = await res.json();
+    notes = {};
+    rows.forEach(r => { notes[r.subject] = r.text; });
+  } catch (e) {
+    console.error("notes load:", e);
+    notes = {};
+  }
+}
+
+async function saveNote(subject, text) {
+  const url = NOTES_URL + "?on_conflict=subject";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Content-Type": "application/json",
+      "Prefer": "resolution=merge-duplicates"
+    },
+    body: JSON.stringify([{ subject, text, updated_at: new Date().toISOString() }])
+  });
+  if (!res.ok) {
+    console.error("save note:", res.status, await res.text());
+    return false;
+  }
+  return true;
+}
+
+async function deleteNote(subject) {
+  const url = NOTES_URL + "?subject=eq." + encodeURIComponent(subject);
   const res = await fetch(url, {
     method: "DELETE",
     headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
@@ -340,7 +465,6 @@ function renderSummary(records) {
   } else {
     html += `<div class="summary-line summary-music" style="color:#888">🎼 Музыкалка: занятий нет</div>`;
   }
-
   html += `</div>`;
 
   const tmr = nextSchoolDate(now);
@@ -365,15 +489,45 @@ function renderSummary(records) {
 
     if (music.length) {
       html += `<div class="summary-line summary-music" style="margin-top:6px"><b>🎼 Музыкалка:</b></div>`;
-      music.forEach(l => {
-        html += `<div class="summary-lesson">○ ${l}</div>`;
-      });
+      music.forEach(l => { html += `<div class="summary-lesson">○ ${l}</div>`; });
     } else {
       html += `<div class="summary-line summary-music" style="color:#888">🎼 Занятий нет</div>`;
     }
     html += `</div>`;
   }
 
+  box.innerHTML = html;
+}
+
+// ============================================================
+// БЛОК ЗАМЕТОК ПО ДЗ
+// ============================================================
+
+function renderNotesBox() {
+  const box = document.getElementById("notes-box");
+  const subjects = Object.keys(notes);
+
+  let html = `<div class="notes-box">
+    <div class="notes-title">
+      <span>📝 Заметки по ДЗ (${subjects.length})</span>
+      <button class="notes-add-btn" onclick="openNoteEditor('')">+ Добавить</button>
+    </div>`;
+
+  if (!subjects.length) {
+    html += `<div class="note-empty">Заметок нет. Нажми «+ Добавить», чтобы записать, что задано.</div>`;
+  } else {
+    subjects.sort().forEach(subj => {
+      const text = notes[subj];
+      html += `<div class="note-item">
+        <div class="note-subject">${escapeHtml(subj)}</div>
+        <div class="note-text">${renderNoteText(text)}</div>
+        <div class="note-actions">
+          <button class="note-btn" onclick="openNoteEditor('${escapeHtml(subj).replace(/'/g, "\\'")}')">✏️</button>
+        </div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
   box.innerHTML = html;
 }
 
@@ -392,8 +546,8 @@ function openEditor(dateStr) {
   const isOverride = !!overrides[dateStr];
   const current = isOverride ? overrides[dateStr] : (SCHOOL_CHART[dow] || []);
 
-  const titleEl = document.getElementById("edit-title");
-  titleEl.textContent = `✏️ Уроки на ${WEEKDAYS[dow]}, ${d} ${MONTHS[m-1]}`;
+  document.getElementById("edit-title").textContent =
+    `✏️ Уроки на ${WEEKDAYS[dow]}, ${d} ${MONTHS[m-1]}`;
 
   const fields = document.getElementById("edit-fields");
   fields.innerHTML = "";
@@ -404,37 +558,32 @@ function openEditor(dateStr) {
     num.className = "lesson-num";
     num.textContent = (i + 1) + ".";
     const input = document.createElement("input");
-    input.className = "lesson-input";
+    input.className = "field-input lesson-input";
     input.type = "text";
     input.placeholder = "— пусто —";
     input.value = current[i] || "";
-    input.dataset.idx = i;
     row.appendChild(num);
     row.appendChild(input);
     fields.appendChild(row);
   }
 
-  const resetBtn = document.getElementById("edit-reset");
-  resetBtn.style.display = isOverride ? "block" : "none";
-
+  document.getElementById("edit-reset").style.display = isOverride ? "block" : "none";
   document.getElementById("edit-modal").classList.remove("hidden");
 }
 
 document.getElementById("edit-save").addEventListener("click", async () => {
   if (!editingDateStr) return;
-
   const inputs = document.querySelectorAll("#edit-fields .lesson-input");
   const subjects = [];
   inputs.forEach(inp => {
     const v = inp.value.trim();
     if (v) subjects.push(v);
   });
-
   const ok = await saveOverride(editingDateStr, subjects);
   if (ok) {
     overrides[editingDateStr] = subjects;
     document.getElementById("edit-modal").classList.add("hidden");
-    loadTasks();
+    loadAll();
   } else {
     alert("Не удалось сохранить. Попробуйте ещё раз.");
   }
@@ -451,9 +600,89 @@ document.getElementById("edit-reset").addEventListener("click", async () => {
   if (ok) {
     delete overrides[editingDateStr];
     document.getElementById("edit-modal").classList.add("hidden");
-    loadTasks();
+    loadAll();
   } else {
     alert("Не удалось сбросить.");
+  }
+});
+
+// ============================================================
+// РЕДАКТОР ЗАМЕТОК
+// ============================================================
+
+const $noteSubject = document.getElementById("note-subject");
+const $noteText = document.getElementById("note-text");
+let editingNoteSubject = "";
+
+function fillSubjectOptions() {
+  // Соберём список предметов: базовые + те, что уже в заметках
+  const s = new Set(ALL_SUBJECTS);
+  Object.keys(notes).forEach(k => s.add(k));
+  const sorted = Array.from(s).sort();
+
+  $noteSubject.innerHTML = '<option value="">— выбери предмет —</option>';
+  sorted.forEach(subj => {
+    const opt = document.createElement("option");
+    opt.value = subj;
+    opt.textContent = subj;
+    $noteSubject.appendChild(opt);
+  });
+}
+
+function openNoteEditor(subject) {
+  editingNoteSubject = subject || "";
+  fillSubjectOptions();
+
+  if (editingNoteSubject) {
+    $noteSubject.value = editingNoteSubject;
+    $noteText.value = notes[editingNoteSubject] || "";
+    document.getElementById("note-delete").style.display = "block";
+  } else {
+    $noteSubject.value = "";
+    $noteText.value = "";
+    document.getElementById("note-delete").style.display = "none";
+  }
+  document.getElementById("note-modal").classList.remove("hidden");
+  setTimeout(() => {
+    if (!editingNoteSubject) $noteSubject.focus();
+    else $noteText.focus();
+  }, 100);
+}
+
+document.getElementById("note-save").addEventListener("click", async () => {
+  const subject = $noteSubject.value.trim();
+  const text = $noteText.value.trim();
+  if (!subject || !text) {
+    alert("Заполни предмет и текст задания.");
+    return;
+  }
+  const ok = await saveNote(subject, text);
+  if (ok) {
+    notes[subject] = text;
+    document.getElementById("note-modal").classList.add("hidden");
+    renderNotesBox();
+    loadAll();
+  } else {
+    alert("Не удалось сохранить. Попробуй ещё раз.");
+  }
+});
+
+document.getElementById("note-cancel").addEventListener("click", () => {
+  document.getElementById("note-modal").classList.add("hidden");
+});
+
+document.getElementById("note-delete").addEventListener("click", async () => {
+  const subject = $noteSubject.value.trim();
+  if (!subject) return;
+  if (!confirm(`Удалить заметку по предмету «${subject}»?`)) return;
+  const ok = await deleteNote(subject);
+  if (ok) {
+    delete notes[subject];
+    document.getElementById("note-modal").classList.add("hidden");
+    renderNotesBox();
+    loadAll();
+  } else {
+    alert("Не удалось удалить.");
   }
 });
 
@@ -500,6 +729,38 @@ function buildTodayPlan(date) {
   return [...olymp, ...school, ...music, ...base];
 }
 
+// Извлекаем название предмета из задачи для сопоставления с заметками
+function subjectFromTask(text) {
+  let s = String(text || "");
+  s = s.replace(/^\s*📚\s*Домашка:\s*/i, "");
+  s = s.replace(/^\s*🏆\s*Олимпиада\s*\(\s*/i, "");
+  s = s.replace(/\s*\(\d+\s*мин\s*\)\s*$/, "");
+  s = s.replace(/\s*\(\s*\d+\s*мин\s*\)\s*/g, "");
+  s = s.replace(/^[🎵🎹📖📝🎻🏆🎒👗🧹🎮]\s*/u, "");
+  s = s.replace(/,.*$/, "");   // отрезаем ", 40 мин" и хвосты
+  return s.trim();
+}
+
+function getNoteForTask(planItem) {
+  // Не показываем заметки для бытовых задач и олимпиад
+  if (planItem.section === "base") return null;
+  if (planItem.text.includes("🏆")) return null;
+  if (planItem.text.includes("Игра")) return null;
+
+  const subj = subjectFromTask(planItem.text);
+  if (!subj) return null;
+  if (notes[subj]) return notes[subj];
+
+  // Попробуем найти по вхождению (например, "Муз. литература" в notes)
+  for (const k of Object.keys(notes)) {
+    if (subj.toLowerCase().includes(k.toLowerCase()) ||
+        k.toLowerCase().includes(subj.toLowerCase())) {
+      return notes[k];
+    }
+  }
+  return null;
+}
+
 // ============================================================
 // НОРМАЛИЗАЦИЯ И ПОИСК
 // ============================================================
@@ -527,7 +788,6 @@ function titlesMatch(a, b) {
   return na.includes(nb) || nb.includes(na);
 }
 
-// Определяем тип задачи — чтобы не путать олимпиаду с домашкой
 function typeOf(text) {
   const t = (text || "").toLowerCase();
   if (t.includes("олимпиад") || t.includes("🏆")) return "olympiad";
@@ -539,7 +799,6 @@ function typeOf(text) {
 
 function findRecordForPlan(planItem, records) {
   const planType = typeOf(planItem.text);
-
   const compatible = (rec) => {
     if (planType === "other") return true;
     const recType = typeOf(rec.title);
@@ -547,12 +806,10 @@ function findRecordForPlan(planItem, records) {
     return recType === planType;
   };
 
-  // 1. Точное совпадение
   for (const r of records) {
     if (!compatible(r)) continue;
     if (titlesMatch(planItem.text, r.title)) return r;
   }
-  // 2. По ключевому слову-предмету
   const keywords = ["математик", "русск", "истори", "литератур", "биолог",
                     "географ", "иностран", "английск", "физкультур", "труд",
                     "музык", "изобразительн", "разговор", "оркестр", "флейт",
@@ -566,7 +823,6 @@ function findRecordForPlan(planItem, records) {
       }
     }
   }
-  // 3. Для фотоотчётов — по последнему слову
   if (planItem.kind === "photo") {
     const kw = pn.split(" ").pop();
     if (kw && kw.length >= 4) {
@@ -707,6 +963,15 @@ function buildPlanRow(planItem, record) {
   titleEl.textContent = planItem.text;
   content.appendChild(titleEl);
 
+  // Заметка по ДЗ (для любого предмета)
+  const note = getNoteForTask(planItem);
+  if (note) {
+    const noteEl = document.createElement("div");
+    noteEl.className = "task-note";
+    noteEl.innerHTML = "📝 " + renderNoteText(note);
+    content.appendChild(noteEl);
+  }
+
   if (planItem.kind === "flute" && record) {
     const sid = extractSid(record.title);
     const fm = (record.title || "").match(/(\d+)\s+фрагмент/);
@@ -841,15 +1106,13 @@ function toggleHistory() {
   showHistory = !showHistory;
   document.getElementById("hist-btn").textContent =
     showHistory ? "📅 Только сегодня" : "📜 Показать всю историю";
-  loadTasks();
+  loadAll();
 }
 
-async function loadTasks() {
+async function loadAll() {
   const logBox = document.getElementById("log-box");
   try {
-    if (!Object.keys(overrides).length) {
-      await loadOverrides();
-    }
+    await Promise.all([loadOverrides(), loadNotes()]);
 
     const res = await fetch(TABLE_URL, {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
@@ -861,6 +1124,7 @@ async function loadTasks() {
     }
 
     renderSummary(records);
+    renderNotesBox();
     logBox.innerHTML = "";
     logBox.className = "";
 
@@ -872,8 +1136,8 @@ async function loadTasks() {
   }
 }
 
-loadOverrides().then(() => loadTasks());
-setInterval(loadTasks, 60000);
+loadAll();
+setInterval(loadAll, 60000);
 </script>
 </body>
 </html>
