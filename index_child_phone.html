@@ -18,9 +18,23 @@
     touch-action: manipulation; overscroll-behavior: none;
   }
   header {
-    padding: 14px 16px 10px; background: #141414;
+    padding: 12px 16px 10px; background: #141414;
     border-bottom: 1px solid #262626;
     position: sticky; top: 0; z-index: 10;
+  }
+  .quiz-row {
+    display: flex; justify-content: center; margin-bottom: 10px;
+  }
+  .quiz-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #ffcc00, #ff8800);
+    color: #1a1a1a;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+    box-shadow: 0 3px 12px rgba(255, 200, 0, 0.25);
   }
   .orientation { font-size: 13px; line-height: 1.45; color: #cfcfcf; white-space: pre-line; }
   .status { margin-top: 8px; font-size: 14px; font-weight: bold; color: #00ffb3; min-height: 20px; text-align: center; }
@@ -39,6 +53,7 @@
   .task:active { background: #202020; }
   .task.done { background: #16301f; border-color: #1e4a30; }
   .task.done .task-title { color: #7acc96; text-decoration: line-through; }
+  .task.done .task-note { color: #6a8a78; }
   .task-check {
     flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px;
     border: 2px solid #555; display: flex; align-items: center; justify-content: center;
@@ -47,6 +62,11 @@
   .task.done .task-check { background: #00ffb3; border-color: #00ffb3; color: #0e0e0e; }
   .task-body { flex: 1; min-width: 0; }
   .task-title { font-size: 16px; color: #eaeaea; word-break: break-word; line-height: 1.3; }
+  .task-note {
+    font-size: 13px; color: #ffcc00; margin-top: 6px;
+    line-height: 1.4; word-break: break-word;
+  }
+  .task-note a { color: #00b3ff; word-break: break-all; }
   .task-time { font-size: 12px; color: #888; margin-top: 4px; }
   .task-ico { flex: 0 0 26px; text-align: center; font-size: 22px; }
   footer {
@@ -76,6 +96,9 @@
 <body>
 
 <header>
+  <div class="quiz-row">
+    <a class="quiz-btn" href="https://natashadear.github.io/history-game-5class/" target="_blank" rel="noopener">🎮 Викторина по истории</a>
+  </div>
   <div class="orientation" id="orientation">Загрузка...</div>
   <div class="status" id="status"></div>
 </header>
@@ -144,6 +167,7 @@ const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks";
 const OVERRIDES_URL = SUPABASE_URL + "/rest/v1/schedule_overrides";
+const NOTES_URL = SUPABASE_URL + "/rest/v1/homework_notes";
 const STORAGE_BUCKET = "flute-recordings";
 const PHOTO_BUCKET = "photo-reports";
 
@@ -216,30 +240,47 @@ const MONTHS = ["января","февраля","марта","апреля","м�
                 "июля","августа","сентября","октября","ноября","декабря"];
 
 // ============================================================
-// OVERRIDES — читаем расписание из облака
+// OVERRIDES — расписание из облака
 // ============================================================
 
 let overrides = {};
+let notes = {};
 
 async function loadOverrides() {
   try {
     const res = await fetch(OVERRIDES_URL + "?select=date,subjects", {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
     });
-    if (!res.ok) {
-      console.warn("⚠️ overrides load:", res.status);
-      overrides = {};
-      return;
-    }
+    if (!res.ok) { overrides = {}; return; }
     const rows = await res.json();
     overrides = {};
     rows.forEach(r => {
       overrides[r.date] = Array.isArray(r.subjects) ? r.subjects : [];
     });
-    console.log("📥 Overrides загружены:", Object.keys(overrides).length, overrides);
+    console.log("📥 Overrides загружены:", Object.keys(overrides).length);
   } catch (e) {
     console.error("overrides load:", e);
     overrides = {};
+  }
+}
+
+// ============================================================
+// ЗАМЕТКИ ПО ДЗ
+// ============================================================
+
+async function loadNotes() {
+  try {
+    const res = await fetch(NOTES_URL + "?select=subject,text", {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+    });
+    if (!res.ok) { notes = {}; return; }
+    const rows = await res.json();
+    notes = {};
+    rows.forEach(r => { notes[r.subject] = r.text; });
+    console.log("📝 Заметки загружены:", Object.keys(notes).length);
+  } catch (e) {
+    console.error("notes load:", e);
+    notes = {};
   }
 }
 
@@ -342,8 +383,21 @@ function tsId() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderNoteHtml(text) {
+  const safe = escapeHtml(text);
+  return safe.replace(/(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+
 // ============================================================
-// ПЛАН ДНЯ — использует overrides через nextSchoolDate
+// ПЛАН ДНЯ
 // ============================================================
 
 function buildTodayPlan(date) {
@@ -383,6 +437,36 @@ function buildTodayPlan(date) {
   base.push({ text: "🧹 Прибрать в комнате", kind: "photo", section: "base" });
 
   return [...olymp, ...school, ...music, ...base];
+}
+
+// Находим заметку к задаче
+function subjectFromTask(text) {
+  let s = String(text || "");
+  s = s.replace(/^\s*📚\s*Домашка:\s*/i, "");
+  s = s.replace(/^\s*🏆\s*Олимпиада\s*\(\s*/i, "");
+  s = s.replace(/\s*\(\d+\s*мин\s*\)\s*$/, "");
+  s = s.replace(/\s*\(\s*\d+\s*мин\s*\)\s*/g, "");
+  s = s.replace(/^[🎵🎹📖📝🎻🏆🎒👗🧹🎮]\s*/u, "");
+  s = s.replace(/,.*$/, "");
+  return s.trim();
+}
+
+function getNoteForTask(planItem) {
+  if (planItem.section === "base") return null;
+  if (planItem.text.includes("🏆")) return null;
+  if (planItem.text.includes("Игра")) return null;
+
+  const subj = subjectFromTask(planItem.text);
+  if (!subj) return null;
+  if (notes[subj]) return notes[subj];
+
+  for (const k of Object.keys(notes)) {
+    if (subj.toLowerCase().includes(k.toLowerCase()) ||
+        k.toLowerCase().includes(subj.toLowerCase())) {
+      return notes[k];
+    }
+  }
+  return null;
 }
 
 function buildOrientationText() {
@@ -545,6 +629,14 @@ function buildTaskRow(item, isLeftover = false) {
   const title = el("div", "task-title", item.text);
   body.appendChild(title);
 
+  // Заметка по ДЗ
+  const note = getNoteForTask(item);
+  if (note) {
+    const noteEl = el("div", "task-note");
+    noteEl.innerHTML = "📝 " + renderNoteHtml(note);
+    body.appendChild(noteEl);
+  }
+
   const ts = state.done[key];
   if (ts) body.appendChild(el("div", "task-time", "✓ " + timeStr(ts)));
 
@@ -556,7 +648,11 @@ function buildTaskRow(item, isLeftover = false) {
   row.appendChild(body);
   if (ico.textContent) row.appendChild(ico);
 
-  row.addEventListener("click", () => handleTaskClick(item, key, row, isLeftover));
+  row.addEventListener("click", (e) => {
+    // Если клик по ссылке в заметке — не переключаем задачу
+    if (e.target.tagName === "A") return;
+    handleTaskClick(item, key, row, isLeftover);
+  });
   return row;
 }
 
@@ -953,7 +1049,7 @@ document.getElementById("adm-clear-left").addEventListener("click", () => {
 });
 
 document.getElementById("adm-refresh").addEventListener("click", async () => {
-  await loadOverrides();
+  await Promise.all([loadOverrides(), loadNotes()]);
   render();
   showFlash("Расписание обновлено");
 });
@@ -969,7 +1065,7 @@ document.getElementById("adm-close").addEventListener("click", () => {
 loadState();
 
 (async function init() {
-  await loadOverrides();
+  await Promise.all([loadOverrides(), loadNotes()]);
   render();
 })();
 
@@ -979,14 +1075,14 @@ setInterval(async () => {
   if (state.date !== today) {
     loadState();
   }
-  await loadOverrides();
+  await Promise.all([loadOverrides(), loadNotes()]);
   render();
 }, 60000);
 
 // Обновление при возврате в приложение
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
-    await loadOverrides();
+    await Promise.all([loadOverrides(), loadNotes()]);
     render();
   }
 });
