@@ -13,182 +13,63 @@
   html, body {
     margin: 0; padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0e0e0e; color: #fff;
-    font-size: 16px;
+    background: #0e0e0e; color: #fff; font-size: 16px;
     -webkit-user-select: none; user-select: none;
-    touch-action: manipulation;
-    overscroll-behavior: none;
+    touch-action: manipulation; overscroll-behavior: none;
   }
-
   header {
-    padding: 14px 16px 10px;
-    background: #141414;
+    padding: 14px 16px 10px; background: #141414;
     border-bottom: 1px solid #262626;
     position: sticky; top: 0; z-index: 10;
   }
-  .orientation {
-    font-size: 13px; line-height: 1.45;
-    color: #cfcfcf; white-space: pre-line;
-  }
-  .orientation b { color: #fff; }
-  .status {
-    margin-top: 8px;
-    font-size: 14px; font-weight: bold;
-    color: #00ffb3;
-    min-height: 20px;
-    text-align: center;
-  }
-
+  .orientation { font-size: 13px; line-height: 1.45; color: #cfcfcf; white-space: pre-line; }
+  .status { margin-top: 8px; font-size: 14px; font-weight: bold; color: #00ffb3; min-height: 20px; text-align: center; }
   main { padding: 12px 12px 100px; }
-
-  .section-title {
-    font-size: 13px; font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin: 18px 4px 8px;
-  }
+  .section-title { font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 4px 8px; }
   .sec-school { color: #a7d4ff; }
   .sec-music  { color: #ffd27f; }
   .sec-base   { color: #c8c8c8; }
   .sec-left   { color: #ff9999; }
-
   .task {
     display: flex; align-items: center; gap: 12px;
-    background: #1a1a1a;
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 8px;
-    min-height: 64px;
-    border: 1px solid #262626;
-    transition: background 0.15s;
+    background: #1a1a1a; border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 8px; min-height: 64px;
+    border: 1px solid #262626; transition: background 0.15s;
   }
   .task:active { background: #202020; }
   .task.done { background: #16301f; border-color: #1e4a30; }
   .task.done .task-title { color: #7acc96; text-decoration: line-through; }
-
   .task-check {
-    flex: 0 0 32px; width: 32px; height: 32px;
-    border-radius: 8px;
-    border: 2px solid #555;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px; color: transparent;
-    background: #111;
-    transition: all 0.15s;
+    flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px;
+    border: 2px solid #555; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; color: transparent; background: #111; transition: all 0.15s;
   }
-  .task.done .task-check {
-    background: #00ffb3; border-color: #00ffb3; color: #0e0e0e;
-  }
-
+  .task.done .task-check { background: #00ffb3; border-color: #00ffb3; color: #0e0e0e; }
   .task-body { flex: 1; min-width: 0; }
-  .task-title {
-    font-size: 16px; color: #eaeaea;
-    word-break: break-word; line-height: 1.3;
-  }
+  .task-title { font-size: 16px; color: #eaeaea; word-break: break-word; line-height: 1.3; }
   .task-time { font-size: 12px; color: #888; margin-top: 4px; }
   .task-ico { flex: 0 0 26px; text-align: center; font-size: 22px; }
-
   footer {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
+    position: fixed; bottom: 0; left: 0; right: 0;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: #141414;
-    border-top: 1px solid #262626;
-    z-index: 20;
+    background: #141414; border-top: 1px solid #262626; z-index: 20;
   }
-  .mom-btn {
-    display: block; width: 100%;
-    padding: 14px;
-    background: #333; color: #fff;
-    border: none; border-radius: 10px;
-    font-size: 15px; font-weight: bold;
-    cursor: pointer;
-  }
-
-  /* ===== Модалки ===== */
-  .modal {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.85);
-    display: flex; align-items: center; justify-content: center;
-    padding: 16px; z-index: 100;
-    backdrop-filter: blur(4px);
-  }
+  .mom-btn { display: block; width: 100%; padding: 14px; background: #333; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; font-family: inherit; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; backdrop-filter: blur(4px); }
   .modal.hidden { display: none; }
-
-  .modal-box {
-    background: #1a1a1a;
-    border-radius: 16px;
-    padding: 20px;
-    width: 100%; max-width: 420px;
-    max-height: 90vh; overflow-y: auto;
-    border: 1px solid #2a2a2a;
-  }
-  .modal-title {
-    font-size: 18px; font-weight: bold;
-    margin-bottom: 12px; color: #00ffb3;
-    text-align: center;
-  }
-  .modal-hint {
-    font-size: 14px; color: #bdbdbd;
-    text-align: center; margin-bottom: 16px;
-    white-space: pre-line; line-height: 1.5;
-  }
-  .modal-timer {
-    font-size: 56px; font-weight: bold;
-    text-align: center; color: #fff;
-    font-variant-numeric: tabular-nums;
-    margin: 16px 0;
-    letter-spacing: 2px;
-  }
-  .rec-dot {
-    display: inline-block; width: 14px; height: 14px;
-    background: #ff3333; border-radius: 50%;
-    margin-right: 8px;
-    animation: blink 1s infinite;
-  }
+  .modal-box { background: #1a1a1a; border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; border: 1px solid #2a2a2a; }
+  .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; color: #00ffb3; text-align: center; }
+  .modal-hint { font-size: 14px; color: #bdbdbd; text-align: center; margin-bottom: 16px; white-space: pre-line; line-height: 1.5; }
+  .modal-timer { font-size: 56px; font-weight: bold; text-align: center; color: #fff; font-variant-numeric: tabular-nums; margin: 16px 0; letter-spacing: 2px; }
+  .rec-dot { display: inline-block; width: 14px; height: 14px; background: #ff3333; border-radius: 50%; margin-right: 8px; animation: blink 1s infinite; }
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-  .modal-btn {
-    display: block; width: 100%;
-    padding: 14px;
-    background: #00ffb3; color: #0e0e0e;
-    border: none; border-radius: 10px;
-    font-size: 16px; font-weight: bold;
-    margin-top: 10px; cursor: pointer;
-  }
+  .modal-btn { display: block; width: 100%; padding: 14px; background: #00ffb3; color: #0e0e0e; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; margin-top: 10px; cursor: pointer; font-family: inherit; }
   .modal-btn.alt { background: #333; color: #fff; }
   .modal-btn:disabled { opacity: 0.4; }
-
-  .video-preview {
-    width: 100%; max-height: 300px;
-    background: #000; border-radius: 10px;
-    object-fit: cover; margin-bottom: 14px;
-  }
-
-  .pin-input {
-    display: block; width: 100%;
-    padding: 14px;
-    font-size: 24px; text-align: center;
-    background: #0e0e0e; color: #fff;
-    border: 1px solid #333; border-radius: 10px;
-    letter-spacing: 8px;
-    margin-bottom: 12px;
-  }
-
-  .empty {
-    color: #666; text-align: center;
-    padding: 30px 20px; font-size: 15px;
-  }
-
-  .flash {
-    position: fixed; top: 20px; left: 50%;
-    transform: translateX(-50%);
-    background: #00ffb3; color: #0e0e0e;
-    padding: 12px 20px; border-radius: 10px;
-    font-weight: bold; font-size: 14px;
-    z-index: 200;
-    box-shadow: 0 4px 20px rgba(0, 255, 179, 0.4);
-    transition: opacity 0.3s;
-  }
+  .video-preview { width: 100%; max-height: 300px; background: #000; border-radius: 10px; object-fit: cover; margin-bottom: 14px; }
+  .pin-input { display: block; width: 100%; padding: 14px; font-size: 24px; text-align: center; background: #0e0e0e; color: #fff; border: 1px solid #333; border-radius: 10px; letter-spacing: 8px; margin-bottom: 12px; font-family: inherit; }
+  .empty { color: #666; text-align: center; padding: 30px 20px; font-size: 15px; }
+  .flash { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #00ffb3; color: #0e0e0e; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 14px; z-index: 200; box-shadow: 0 4px 20px rgba(0, 255, 179, 0.4); transition: opacity 0.3s; }
   .flash.hidden { opacity: 0; pointer-events: none; }
 </style>
 </head>
@@ -209,7 +90,6 @@
 
 <div class="flash hidden" id="flash"></div>
 
-<!-- Модалка флейты/оркестра -->
 <div class="modal hidden" id="flute-modal">
   <div class="modal-box">
     <div class="modal-title" id="flute-title">🎵 Флейта — 40 минут</div>
@@ -224,7 +104,6 @@
   </div>
 </div>
 
-<!-- Модалка камеры -->
 <div class="modal hidden" id="cam-modal">
   <div class="modal-box">
     <div class="modal-title" id="cam-title">📸 Фотоотчёт</div>
@@ -236,7 +115,6 @@
   </div>
 </div>
 
-<!-- Модалка PIN -->
 <div class="modal hidden" id="pin-modal">
   <div class="modal-box">
     <div class="modal-title">🔒 Раздел мамы</div>
@@ -247,12 +125,12 @@
   </div>
 </div>
 
-<!-- Модалка админа -->
 <div class="modal hidden" id="admin-modal">
   <div class="modal-box">
     <div class="modal-title">🛠 Панель мамы</div>
     <button class="modal-btn" id="adm-reset">🔄 Сбросить галочки</button>
     <button class="modal-btn" id="adm-clear-left">🧹 Очистить хвосты</button>
+    <button class="modal-btn" id="adm-refresh">📥 Обновить расписание</button>
     <button class="modal-btn alt" id="adm-close">◀ Выход</button>
   </div>
 </div>
@@ -265,20 +143,17 @@
 const SUPABASE_URL = "https://uwuehnueutxpzyzyvxwj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cZn5xVHJ98ITaSR0yFRQBA_JTRkQZDQ";
 const TABLE_URL = SUPABASE_URL + "/rest/v1/tasks";
+const OVERRIDES_URL = SUPABASE_URL + "/rest/v1/schedule_overrides";
 const STORAGE_BUCKET = "flute-recordings";
 const PHOTO_BUCKET = "photo-reports";
 
 const FLUTE_MINUTES = 40;
-const FRAGMENT_DURATION = 15;      // секунд
-const FRAGMENT_INTERVAL = 5 * 60;  // секунд между фрагментами
+const FRAGMENT_DURATION = 15;
+const FRAGMENT_INTERVAL = 5 * 60;
 const TOTAL_FRAGMENTS = 8;
 const COOLDOWN_SECONDS = 8;
 const CORRECT_PIN = "1234";
 const STATE_KEY = "vera_state_v1";
-
-// ============================================================
-// РАСПИСАНИЯ
-// ============================================================
 
 const SCHOOL_CHART = {
   0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
@@ -317,11 +192,6 @@ const DAILY_MUSIC_HOMEWORK = {
       { text: "🎹 Фортепиано (20 мин)", kind: "study" }]
 };
 
-const HOMEWORK_MOVES = {
-  "2|История": 3, "2|Литература": 3,
-  "4|История": 5, "4|Литература": 5
-};
-
 const OLYMPIADS = {
   "2026-09-15": "История", "2026-09-17": "Русский язык",
   "2026-09-28": "Английский язык", "2026-10-08": "Биология",
@@ -330,18 +200,14 @@ const OLYMPIADS = {
 
 const PHOTO_STEPS = {
   "🎒 Собрать портфель": [
-    { title: "Сфотографируй учебники в портфеле",
-      hint: "Разложи учебники и сфотографируй", role: "portfolio" }
+    { title: "Сфотографируй учебники в портфеле", hint: "Разложи учебники и сфотографируй", role: "portfolio" }
   ],
   "👗 Приготовить одежду": [
-    { title: "Сфотографируй одежду на завтра",
-      hint: "Разложи форму и сфотографируй", role: "clothes" }
+    { title: "Сфотографируй одежду на завтра", hint: "Разложи форму и сфотографируй", role: "clothes" }
   ],
   "🧹 Прибрать в комнате": [
-    { title: "Шаг 1: сфотографируй комнату ДО",
-      hint: "Сфотографируй, как сейчас", role: "room_before" },
-    { title: "Шаг 2: сфотографируй комнату ПОСЛЕ",
-      hint: "Сфотографируй результат", role: "room_after" }
+    { title: "Шаг 1: сфотографируй комнату ДО", hint: "Сфотографируй, как сейчас", role: "room_before" },
+    { title: "Шаг 2: сфотографируй комнату ПОСЛЕ", hint: "Сфотографируй результат", role: "room_after" }
   ]
 };
 
@@ -350,20 +216,46 @@ const MONTHS = ["января","февраля","марта","апреля","м�
                 "июля","августа","сентября","октября","ноября","декабря"];
 
 // ============================================================
+// OVERRIDES — читаем расписание из облака
+// ============================================================
+
+let overrides = {};
+
+async function loadOverrides() {
+  try {
+    const res = await fetch(OVERRIDES_URL + "?select=date,subjects", {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
+    });
+    if (!res.ok) {
+      console.warn("⚠️ overrides load:", res.status);
+      overrides = {};
+      return;
+    }
+    const rows = await res.json();
+    overrides = {};
+    rows.forEach(r => {
+      overrides[r.date] = Array.isArray(r.subjects) ? r.subjects : [];
+    });
+    console.log("📥 Overrides загружены:", Object.keys(overrides).length, overrides);
+  } catch (e) {
+    console.error("overrides load:", e);
+    overrides = {};
+  }
+}
+
+// ============================================================
 // СОСТОЯНИЕ
 // ============================================================
 
-let state = {
-  date: "",
-  done: {},          // { "taskText": timestamp }
-  leftovers: [],     // [{text, kind, since}]
-  lessonsSent: []    // ["Специальность|17:45", ...]
-};
+let state = { date: "", done: {}, leftovers: [], lessonsSent: [] };
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STATE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      state = { date: new Date().toISOString().slice(0, 10), done: {}, leftovers: [], lessonsSent: [] };
+      return;
+    }
     const d = JSON.parse(raw);
     const today = new Date().toISOString().slice(0, 10);
     if (d.date === today) {
@@ -372,8 +264,6 @@ function loadState() {
       state.leftovers = state.leftovers || [];
       state.lessonsSent = state.lessonsSent || [];
     } else {
-      // новый день — переложить незакрытое в хвосты
-      const prevDone = d.done || {};
       const newLeft = [];
       (d.leftovers || []).forEach(lo => {
         const since = new Date(lo.since);
@@ -397,8 +287,33 @@ function saveState() {
 
 const jsDow = d => (d.getDay() + 6) % 7;
 
-function homeworkSubjectsFor(dow) {
-  return (SCHOOL_CHART[dow] || []).filter(s => !s.includes("*"));
+const dateKey = d => {
+  const x = new Date(d);
+  const p = n => String(n).padStart(2, "0");
+  return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}`;
+};
+
+function subjectsForDate(date) {
+  const k = dateKey(date);
+  if (overrides[k]) return overrides[k];
+  return SCHOOL_CHART[jsDow(date)] || [];
+}
+
+function homeworkSubjectsForDate(date) {
+  return subjectsForDate(date).filter(s => !s.includes("*"));
+}
+
+function dateHasLessons(date) {
+  return subjectsForDate(date).length > 0;
+}
+
+function nextSchoolDate(fromDate) {
+  let d = new Date(fromDate);
+  for (let i = 0; i < 7; i++) {
+    d.setDate(d.getDate() + 1);
+    if (dateHasLessons(d)) return new Date(d);
+  }
+  return null;
 }
 
 function daysFromToday(dateStr) {
@@ -408,47 +323,45 @@ function daysFromToday(dateStr) {
   return Math.round((o - t) / 86400000);
 }
 
-function nextSchoolDate(fromDate) {
-  let d = new Date(fromDate);
-  for (let i = 0; i < 7; i++) {
-    d.setDate(d.getDate() + 1);
-    if (SCHOOL_CHART[jsDow(d)] && SCHOOL_CHART[jsDow(d)].length) return new Date(d);
-  }
-  return null;
-}
-
 function timeStr(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
+function tsId() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 // ============================================================
-// ПЛАН ДНЯ
+// ПЛАН ДНЯ — использует overrides через nextSchoolDate
 // ============================================================
 
 function buildTodayPlan(date) {
   const dow = jsDow(date);
+
   const olymp = [];
   for (const [dateStr, name] of Object.entries(OLYMPIADS)) {
     const delta = daysFromToday(dateStr);
     if (delta === 1 || delta === 2) {
-      olymp.push({
-        text: `🏆 Олимпиада (${name}, 40 мин)`,
-        kind: "study", section: "school"
-      });
+      olymp.push({ text: `🏆 Олимпиада (${name}, 40 мин)`, kind: "study", section: "school" });
     }
   }
 
   const school = [];
-  for (let d = 0; d < 7; d++) {
-    for (const subj of homeworkSubjectsFor(d)) {
-      const target = HOMEWORK_MOVES[`${d}|${subj}`] ?? d;
-      if (target === dow) {
-        school.push({
-          text: `📚 Домашка: ${subj}`,
-          kind: "study", section: "school"
-        });
-      }
+  const tmr = nextSchoolDate(date);
+  if (tmr) {
+    for (const subj of homeworkSubjectsForDate(tmr)) {
+      school.push({ text: `📚 Домашка: ${subj}`, kind: "study", section: "school" });
     }
   }
 
@@ -477,7 +390,7 @@ function buildOrientationText() {
   const dow = jsDow(now);
   const lines = [];
 
-  const sToday = SCHOOL_CHART[dow] || [];
+  const sToday = subjectsForDate(now);
   const mToday = MUSIC_CHART[dow] || [];
   lines.push(`📍 Сегодня, ${WEEKDAYS[dow]}:`);
   lines.push(sToday.length ? `   Школа: ${sToday.length} уроков` : "   Школа: выходной");
@@ -489,14 +402,14 @@ function buildOrientationText() {
     lines.push("📅 Завтра: выходной 🎉");
   } else {
     const td = jsDow(tmr);
-    const ts = SCHOOL_CHART[td] || [];
+    const ts = subjectsForDate(tmr);
     const tm = MUSIC_CHART[td] || [];
     const clean = ts.map(s => s.replace("*", ""));
     lines.push(`📅 Завтра, ${WEEKDAYS[td]} (${tmr.getDate()} ${MONTHS[tmr.getMonth()]}):`);
     if (ts.length) {
       lines.push(`   Школа: ${ts.length} уроков`);
       lines.push("   " + clean.join(", "));
-      lines.push(`   📚 Учебников: ${homeworkSubjectsFor(td).length}`);
+      lines.push(`   📚 Учебников: ${homeworkSubjectsForDate(tmr).length}`);
     } else {
       lines.push("   Школа: выходной");
     }
@@ -511,7 +424,6 @@ function buildOrientationText() {
 // ============================================================
 
 function sendToCloud(title) {
-  const payload = { title, is_done: true };
   fetch(TABLE_URL, {
     method: "POST",
     headers: {
@@ -520,7 +432,7 @@ function sendToCloud(title) {
       "Content-Type": "application/json",
       "Prefer": "return=minimal"
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ title, is_done: true })
   }).then(r => {
     if (r.status >= 300) console.warn("⚠️ cloud:", r.status);
     else console.log("✅ отправлено:", title);
@@ -567,9 +479,7 @@ function showFlash(msg) {
   setTimeout(() => $flash.classList.add("hidden"), 2000);
 }
 
-function setStatus(msg) {
-  $status.textContent = msg;
-}
+function setStatus(msg) { $status.textContent = msg; }
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -603,7 +513,6 @@ function render() {
     base.forEach(it => $tasks.appendChild(buildTaskRow(it)));
   }
 
-  // Хвосты
   const currentNorms = new Set(plan.map(p => normText(p.text)));
   const visibleLeft = state.leftovers.filter(lo => !currentNorms.has(normText(lo.text)));
   if (visibleLeft.length) {
@@ -637,10 +546,7 @@ function buildTaskRow(item, isLeftover = false) {
   body.appendChild(title);
 
   const ts = state.done[key];
-  if (ts) {
-    const t = el("div", "task-time", "✓ " + timeStr(ts));
-    body.appendChild(t);
-  }
+  if (ts) body.appendChild(el("div", "task-time", "✓ " + timeStr(ts)));
 
   const ico = el("div", "task-ico");
   if (item.kind === "audio" || /Флейта|Оркестр/.test(item.text)) ico.textContent = "🎵";
@@ -657,9 +563,7 @@ function buildTaskRow(item, isLeftover = false) {
 function recount() {
   const total = document.querySelectorAll(".task").length;
   const done = document.querySelectorAll(".task.done").length;
-  if (total && done >= total) {
-    setStatus("🚀 Миссия выполнена, капитан Вера! 🫡");
-  }
+  if (total && done >= total) setStatus("🚀 Миссия выполнена, капитан Вера! 🫡");
 }
 
 // ============================================================
@@ -673,30 +577,15 @@ function cooldownRemaining() {
 }
 
 function handleTaskClick(item, key, row, isLeftover) {
-  // Уже выполнено — снимаем нельзя (только через маму)
-  if (state.done[key]) {
-    showFlash("Уже сделано ✓");
-    return;
-  }
+  if (state.done[key]) { showFlash("Уже сделано ✓"); return; }
 
-  // Аудио — открыть экран записи
   if (item.kind === "audio" || /Флейта|Оркестр/.test(item.text)) {
-    openFluteModal(item.text, key);
-    return;
+    openFluteModal(item.text, key); return;
   }
+  if (item.kind === "photo") { openCamModal(item.text, key); return; }
 
-  // Фото — открыть камеру
-  if (item.kind === "photo") {
-    openCamModal(item.text, key);
-    return;
-  }
-
-  // Обычная задача
   const rem = cooldownRemaining();
-  if (rem > 0) {
-    setStatus(`⚠️ Не части! Подожди ${Math.ceil(rem)} сек.`);
-    return;
-  }
+  if (rem > 0) { setStatus(`⚠️ Не части! Подожди ${Math.ceil(rem)} сек.`); return; }
 
   markDone(item.text, key, isLeftover);
   lastActionTime = Date.now();
@@ -705,15 +594,10 @@ function handleTaskClick(item, key, row, isLeftover) {
 
 function markDone(text, key, isLeftover = false) {
   state.done[key] = new Date().toISOString();
-  if (isLeftover) {
-    state.leftovers = state.leftovers.filter(lo => lo.text !== key);
-  }
+  if (isLeftover) state.leftovers = state.leftovers.filter(lo => lo.text !== key);
   saveState();
-
-  // В облако — текст без эмодзи
   const clean = text.replace(/^[🎒👗🧹📚🎵🏆🎹📝📖🎻]\s*/u, "");
   sendToCloud(isLeftover ? "Хвост: " + clean : clean);
-
   render();
 }
 
@@ -749,15 +633,9 @@ let fluteSession = null;
 
 function openFluteModal(taskText, key) {
   fluteSession = {
-    taskText, key,
-    active: false,
-    cancelled: false,
-    fragments: [],          // [{idx, blob}]
-    sessionId: null,
-    stream: null,
-    startTs: 0,
-    timerInt: null,
-    uploadDone: false
+    taskText, key, active: false, cancelled: false,
+    fragments: [], sessionId: null, stream: null,
+    startTs: 0, running: false
   };
 
   const base = taskText.replace(/^[🎵🎻]\s*/, "").split(" (")[0];
@@ -774,19 +652,14 @@ function openFluteModal(taskText, key) {
   $fluteModal.classList.remove("hidden");
 }
 
-function fmtTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-}
-
-$fluteStart.addEventListener("click", async () => {
-  if (!fluteSession || fluteSession.active) return;
-
+$fluteStart.addEventListener("click", () => {
+  if (!fluteSession || fluteSession.running) return;
+  fluteSession.running = true;
   fluteSession.active = true;
   fluteSession.startTs = Date.now();
   fluteSession.sessionId = tsId();
   fluteSession.fragments = [];
+  fluteSession.cancelled = false;
 
   $fluteStart.disabled = true;
   $fluteCancel.textContent = "◀ Прервать";
@@ -794,95 +667,103 @@ $fluteStart.addEventListener("click", async () => {
   $recLabel.textContent = "● REC";
   $fluteHint.textContent = "Идёт запись. Пока не останавливай.";
 
-  // Таймер интерфейса
-  fluteSession.timerInt = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - fluteSession.startTs) / 1000);
-    const remain = Math.max(0, FLUTE_MINUTES * 60 - elapsed);
-    $fluteTimer.textContent = fmtTime(remain);
-    if (remain <= 0) finishFlute(false);
-  }, 500);
-
-  // Запись
-  startRecordingLoop();
+  runFluteSession();
 });
 
 $fluteCancel.addEventListener("click", () => {
   if (!fluteSession) return;
-  if (!fluteSession.active) {
-    closeFlute();
-    return;
-  }
+  if (!fluteSession.active) { closeFlute(); return; }
   $fluteCancel.disabled = true;
   $fluteHint.textContent = "Останавливаю запись…";
   fluteSession.cancelled = true;
-  finishFlute(true);
 });
 
-async function startRecordingLoop() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    fluteSession.stream = stream;
-  } catch (e) {
-    console.error(e);
-    $fluteHint.textContent = "⚠️ Микрофон недоступен. Скажи маме.";
+async function runFluteSession() {
+  const session = fluteSession;
+  if (!session) return;
+
+  if (typeof MediaRecorder === "undefined") {
+    $fluteHint.textContent = "⚠️ Запись звука не поддерживается браузером.";
     $fluteStart.disabled = true;
     return;
   }
 
-  const session = fluteSession;
-
-  for (let i = 0; i < TOTAL_FRAGMENTS; i++) {
-    if (session.cancelled) break;
-
-    // Ждём нужного момента
-    const target = i * FRAGMENT_INTERVAL;
-    while (!session.cancelled) {
-      const elapsed = (Date.now() - session.startTs) / 1000;
-      if (elapsed >= target) break;
-      await sleep(500);
-    }
-    if (session.cancelled) break;
-
-    // Записываем фрагмент
-    const blob = await recordSeconds(stream, FRAGMENT_DURATION);
-    if (blob && blob.size > 0) {
-      session.fragments.push({ idx: i + 1, blob });
-      console.log(`✅ Фрагмент ${i + 1} записан (${Math.round(blob.size/1024)} КБ)`);
-    }
+  try {
+    session.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    console.error(e);
+    $fluteHint.textContent = "⚠️ Микрофон недоступен. Скажи маме.";
+    $recDot.style.display = "none";
+    $recLabel.textContent = "";
+    return;
   }
 
-  // Загрузка
-  if (!session.uploadDone) {
-    session.uploadDone = true;
-    await uploadAllFragments(session);
-  }
-}
+  const totalSeconds = FLUTE_MINUTES * 60;
+  let nextFragmentTime = 0;
+  let fragmentIdx = 0;
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
+  while (true) {
+    if (session.cancelled) break;
+    const elapsed = (Date.now() - session.startTs) / 1000;
+    if (elapsed >= totalSeconds) break;
+
+    const remain = Math.max(0, totalSeconds - elapsed);
+    $fluteTimer.textContent = fmtTime(remain);
+
+    if (fragmentIdx < TOTAL_FRAGMENTS && elapsed >= nextFragmentTime) {
+      try {
+        const blob = await recordSeconds(session.stream, FRAGMENT_DURATION);
+        if (blob && blob.size > 0) {
+          session.fragments.push({ idx: fragmentIdx + 1, blob });
+          console.log(`✅ Фрагмент ${fragmentIdx + 1} записан (${Math.round(blob.size/1024)} КБ)`);
+        }
+      } catch (e) { console.error("Ошибка записи фрагмента:", e); }
+      fragmentIdx++;
+      nextFragmentTime = fragmentIdx * FRAGMENT_INTERVAL;
+      continue;
+    }
+    await sleep(250);
+  }
+
+  $fluteTimer.textContent = fmtTime(session.cancelled ? Math.floor((Date.now() - session.startTs) / 1000) : 0);
+
+  if (session.stream) {
+    session.stream.getTracks().forEach(t => t.stop());
+    session.stream = null;
+  }
+  $recDot.style.display = "none";
+  $recLabel.textContent = "";
+
+  $fluteHint.textContent = "Отправляю маме…";
+  await uploadAllFragments(session);
+
+  $fluteModal.classList.add("hidden");
+  fluteSession = null;
+  render();
+
+  if (!session.cancelled && session.fragments.length > 0) {
+    setStatus("🎵 Отлично! Запись отправлена маме 🌟");
+    setTimeout(() => setStatus(""), 4000);
+  }
 }
 
 function recordSeconds(stream, seconds) {
-  return new Promise(resolve => {
-    let mime = "audio/webm";
-    if (!MediaRecorder.isTypeSupported(mime)) {
-      mime = "audio/mp4";
+  return new Promise((resolve, reject) => {
+    let mime = "";
+    for (const candidate of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
+      if (MediaRecorder.isTypeSupported(candidate)) { mime = candidate; break; }
     }
     let rec;
-    try {
-      rec = new MediaRecorder(stream, { mimeType: mime });
-    } catch (e) {
-      console.error("MediaRecorder:", e);
-      resolve(null);
-      return;
-    }
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
+    catch (e) { reject(e); return; }
     const chunks = [];
     rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onerror = e => reject(e);
     rec.onstop = () => {
-      const blob = new Blob(chunks, { type: mime });
-      resolve(blob);
+      const type = rec.mimeType || mime || "audio/webm";
+      resolve(new Blob(chunks, { type }));
     };
-    rec.start();
+    try { rec.start(); } catch (e) { reject(e); return; }
     setTimeout(() => { try { rec.stop(); } catch (e) {} }, seconds * 1000);
   });
 }
@@ -890,69 +771,36 @@ function recordSeconds(stream, seconds) {
 async function uploadAllFragments(session) {
   const sid = session.sessionId;
   if (!sid) return;
-
   let uploaded = 0;
   for (const f of session.fragments) {
-    const name = `frag_${String(f.idx).padStart(2, "0")}.webm`;
+    let ext = "webm";
+    const t = (f.blob.type || "").toLowerCase();
+    if (t.includes("mp4")) ext = "m4a";
+    else if (t.includes("ogg")) ext = "ogg";
+    const name = `frag_${String(f.idx).padStart(2, "0")}.${ext}`;
     const path = `${sid}/${name}`;
     const ok = await uploadBlob(STORAGE_BUCKET, path, f.blob, f.blob.type || "audio/webm");
     if (ok) uploaded++;
   }
-
   const base = session.taskText.replace(/^[🎵🎻]\s*/, "").split(" (")[0];
-  let title;
-  if (session.cancelled) {
-    title = `${base}: прервано, ${uploaded} фрагментов [sid=${sid}]`;
-  } else {
-    title = `${base}: ${FLUTE_MINUTES} мин, ${uploaded} фрагментов [sid=${sid}]`;
-  }
+  const title = session.cancelled
+    ? `${base}: прервано, ${uploaded} фрагментов [sid=${sid}]`
+    : `${base}: ${FLUTE_MINUTES} мин, ${uploaded} фрагментов [sid=${sid}]`;
   console.log("📤 Отправляю в облако:", title);
   sendToCloud(title);
-
-  // Отметить задачу
   if (!session.cancelled && uploaded > 0) {
     state.done[session.key] = new Date().toISOString();
     saveState();
-    render();
   }
-}
-
-function finishFlute(cancelled) {
-  if (!fluteSession) return;
-  fluteSession.cancelled = cancelled;
-  if (fluteSession.timerInt) clearInterval(fluteSession.timerInt);
-
-  // Останавливаем поток записи, чтобы не висел индикатор микрофона
-  if (fluteSession.stream) {
-    fluteSession.stream.getTracks().forEach(t => t.stop());
-    fluteSession.stream = null;
-  }
-
-  $recDot.style.display = "none";
-  $recLabel.textContent = "";
-
-  // Закрываем и рендерим заново
-  setTimeout(() => {
-    $fluteModal.classList.add("hidden");
-    fluteSession = null;
-    render();
-  }, 800);
 }
 
 function closeFlute() {
   if (fluteSession && fluteSession.stream) {
     fluteSession.stream.getTracks().forEach(t => t.stop());
   }
-  if (fluteSession && fluteSession.timerInt) clearInterval(fluteSession.timerInt);
   fluteSession = null;
   $fluteModal.classList.add("hidden");
   render();
-}
-
-function tsId() {
-  const d = new Date();
-  const p = n => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 // ============================================================
@@ -975,20 +823,14 @@ async function openCamModal(taskText, key) {
     { title: "Сфотографируй результат", hint: "Нажми «Сделать фото», когда готово", role: "photo" }
   ];
 
-  camSession = {
-    taskText, key,
-    steps, stepIdx: 0,
-    photos: [],
-    sessionId: tsId(),
-    stream: null
-  };
+  camSession = { taskText, key, steps, stepIdx: 0, photos: [], sessionId: tsId(), stream: null };
 
   $camProgress.textContent = `Шаг 1 / ${steps.length}`;
   $camTitle.textContent = "📸 " + base;
   $camHint.textContent = steps[0].title + "\n" + (steps[0].hint || "");
   $camSnap.disabled = false;
+  $camSnap.textContent = "📸 СДЕЛАТЬ ФОТО";
   $camCancel.disabled = false;
-
   $camModal.classList.remove("hidden");
 
   try {
@@ -1011,8 +853,7 @@ $camSnap.addEventListener("click", () => {
   const canvas = document.createElement("canvas");
   const vw = $camVideo.videoWidth || 640;
   const vh = $camVideo.videoHeight || 480;
-  canvas.width = vw;
-  canvas.height = vh;
+  canvas.width = vw; canvas.height = vh;
   canvas.getContext("2d").drawImage($camVideo, 0, 0);
 
   canvas.toBlob(blob => {
@@ -1020,7 +861,6 @@ $camSnap.addEventListener("click", () => {
       const step = camSession.steps[camSession.stepIdx];
       camSession.photos.push({ role: step.role, blob });
       camSession.stepIdx++;
-
       if (camSession.stepIdx >= camSession.steps.length) {
         finishCam();
       } else {
@@ -1036,29 +876,23 @@ $camSnap.addEventListener("click", () => {
   }, "image/jpeg", 0.85);
 });
 
-$camCancel.addEventListener("click", () => {
-  closeCam();
-});
+$camCancel.addEventListener("click", () => closeCam());
 
 async function finishCam() {
   const session = camSession;
   $camHint.textContent = "Отправляю…";
   $camSnap.disabled = true;
   $camCancel.disabled = true;
-
   for (const p of session.photos) {
     const path = `${session.sessionId}/${p.role}.jpg`;
     await uploadBlob(PHOTO_BUCKET, path, p.blob, "image/jpeg");
   }
-
   const clean = session.taskText.replace(/^[🎒👗🧹]\s*/u, "");
   const title = `Фотоотчет: ${clean} [sid=${session.sessionId}]`;
   console.log("📤 Отправляю:", title);
   sendToCloud(title);
-
   state.done[session.key] = new Date().toISOString();
   saveState();
-
   closeCam();
   render();
   setStatus("📸 Отчёт отправлен маме!");
@@ -1076,7 +910,7 @@ function closeCam() {
 }
 
 // ============================================================
-// PIN + ПАНЕЛЬ МАМЫ
+// PIN + ПАНЕЛЬ МАМЫ (внутри детского пульта)
 // ============================================================
 
 const $pinModal = document.getElementById("pin-modal");
@@ -1118,19 +952,28 @@ document.getElementById("adm-clear-left").addEventListener("click", () => {
   showFlash("Хвосты очищены");
 });
 
+document.getElementById("adm-refresh").addEventListener("click", async () => {
+  await loadOverrides();
+  render();
+  showFlash("Расписание обновлено");
+});
+
 document.getElementById("adm-close").addEventListener("click", () => {
   $adminModal.classList.add("hidden");
 });
 
 // ============================================================
-// СТАРТ
+// СТАРТ + АВТООБНОВЛЕНИЕ
 // ============================================================
 
 loadState();
-render();
 
-// Проверка смены дня
-// Автообновление overrides раз в минуту
+(async function init() {
+  await loadOverrides();
+  render();
+})();
+
+// Автообновление раз в минуту
 setInterval(async () => {
   const today = new Date().toISOString().slice(0, 10);
   if (state.date !== today) {
@@ -1140,7 +983,7 @@ setInterval(async () => {
   render();
 }, 60000);
 
-// Обновляем при возврате в приложение
+// Обновление при возврате в приложение
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
     await loadOverrides();
