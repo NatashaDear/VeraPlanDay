@@ -77,7 +77,6 @@
 
   .empty { color:#777; text-align:center; padding:20px; }
 
-  /* Модалка редактора */
   .modal { position:fixed; inset:0; background:rgba(0,0,0,0.85);
            display:flex; align-items:center; justify-content:center; padding:16px;
            z-index:100; backdrop-filter:blur(4px); }
@@ -110,7 +109,6 @@
 <div id="summary-box"></div>
 <div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
-<!-- Модалка редактора расписания -->
 <div class="modal hidden" id="edit-modal">
   <div class="modal-box">
     <div class="modal-title" id="edit-title">✏️ Уроки</div>
@@ -315,7 +313,6 @@ function renderSummary(records) {
 
   let html = "";
 
-  // ===== СЕГОДНЯ =====
   const subjectsToday = subjectsForDate(now);
   const musicToday = MUSIC_CHART[jsDow(now)] || [];
   const cleanToday = subjectsToday.map(s => s.replace("*", ""));
@@ -346,7 +343,6 @@ function renderSummary(records) {
 
   html += `</div>`;
 
-  // ===== ЗАВТРА =====
   const tmr = nextSchoolDate(now);
   if (tmr) {
     const tmrKey = dateKey(tmr);
@@ -418,7 +414,6 @@ function openEditor(dateStr) {
     fields.appendChild(row);
   }
 
-  // Кнопка сброса — только если override есть
   const resetBtn = document.getElementById("edit-reset");
   resetBtn.style.display = isOverride ? "block" : "none";
 
@@ -439,7 +434,6 @@ document.getElementById("edit-save").addEventListener("click", async () => {
   if (ok) {
     overrides[editingDateStr] = subjects;
     document.getElementById("edit-modal").classList.add("hidden");
-    // Перерисовать сводку
     loadTasks();
   } else {
     alert("Не удалось сохранить. Попробуйте ещё раз.");
@@ -464,7 +458,7 @@ document.getElementById("edit-reset").addEventListener("click", async () => {
 });
 
 // ============================================================
-// ПЛАН ДНЯ (для нижней части пульта)
+// ПЛАН ДНЯ
 // ============================================================
 
 function buildTodayPlan(date) {
@@ -533,8 +527,32 @@ function titlesMatch(a, b) {
   return na.includes(nb) || nb.includes(na);
 }
 
+// Определяем тип задачи — чтобы не путать олимпиаду с домашкой
+function typeOf(text) {
+  const t = (text || "").toLowerCase();
+  if (t.includes("олимпиад") || t.includes("🏆")) return "olympiad";
+  if (t.startsWith("хвост") || t.startsWith("↪")) return "leftover";
+  if (t.includes("фотоотчет") || t.includes("фотоотчёт")) return "photo";
+  if (t.includes("домашка") || t.includes("📚")) return "homework";
+  return "other";
+}
+
 function findRecordForPlan(planItem, records) {
-  for (const r of records) if (titlesMatch(planItem.text, r.title)) return r;
+  const planType = typeOf(planItem.text);
+
+  const compatible = (rec) => {
+    if (planType === "other") return true;
+    const recType = typeOf(rec.title);
+    if (recType === "other") return true;
+    return recType === planType;
+  };
+
+  // 1. Точное совпадение
+  for (const r of records) {
+    if (!compatible(r)) continue;
+    if (titlesMatch(planItem.text, r.title)) return r;
+  }
+  // 2. По ключевому слову-предмету
   const keywords = ["математик", "русск", "истори", "литератур", "биолог",
                     "географ", "иностран", "английск", "физкультур", "труд",
                     "музык", "изобразительн", "разговор", "оркестр", "флейт",
@@ -542,13 +560,20 @@ function findRecordForPlan(planItem, records) {
   const pn = normalizeTitle(planItem.text);
   for (const kw of keywords) {
     if (pn.includes(kw)) {
-      for (const r of records) if (normalizeTitle(r.title).includes(kw)) return r;
+      for (const r of records) {
+        if (!compatible(r)) continue;
+        if (normalizeTitle(r.title).includes(kw)) return r;
+      }
     }
   }
+  // 3. Для фотоотчётов — по последнему слову
   if (planItem.kind === "photo") {
     const kw = pn.split(" ").pop();
     if (kw && kw.length >= 4) {
-      for (const r of records) if (normalizeTitle(r.title).includes(kw)) return r;
+      for (const r of records) {
+        if (!compatible(r)) continue;
+        if (normalizeTitle(r.title).includes(kw)) return r;
+      }
     }
   }
   return null;
