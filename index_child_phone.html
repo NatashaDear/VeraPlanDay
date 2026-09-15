@@ -1130,13 +1130,23 @@ loadState();
 render();
 
 // Проверка смены дня
-setInterval(() => {
+// Автообновление overrides раз в минуту
+setInterval(async () => {
   const today = new Date().toISOString().slice(0, 10);
   if (state.date !== today) {
     loadState();
+  }
+  await loadOverrides();
+  render();
+}, 60000);
+
+// Обновляем при возврате в приложение
+document.addEventListener("visibilitychange", async () => {
+  if (!document.hidden) {
+    await loadOverrides();
     render();
   }
-}, 60000);
+});
 </script>
 </body>
 </html>
