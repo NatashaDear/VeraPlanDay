@@ -52,7 +52,6 @@
   .note-btn { background:transparent; border:1px solid #555; color:#ccc;
               padding:2px 8px; border-radius:4px; font-size:11px;
               cursor:pointer; font-family:inherit; }
-  .note-btn.danger { border-color:#a33; color:#ff8080; }
   .note-empty { color:#888; font-size:12px; text-align:center; padding:6px 0; }
 
   .day-head { display:flex; justify-content:space-between; align-items:baseline;
@@ -138,7 +137,6 @@
 <div id="notes-box"></div>
 <div id="log-box" class="empty">Ожидание загрузки данных...</div>
 
-<!-- Модалка редактора расписания -->
 <div class="modal hidden" id="edit-modal">
   <div class="modal-box">
     <div class="modal-title" id="edit-title">✏️ Уроки</div>
@@ -156,7 +154,6 @@
   </div>
 </div>
 
-<!-- Модалка ДЗ по предмету -->
 <div class="modal hidden" id="note-modal">
   <div class="modal-box">
     <div class="modal-title">📝 Заметка по ДЗ</div>
@@ -233,7 +230,6 @@ const OLYMPIADS = {
   "2026-10-14": "Математика", "2026-10-20": "География"
 };
 
-// Список предметов для заметок (все, что встречаются в расписаниях)
 const ALL_SUBJECTS = [
   "Математика", "История", "Русский язык", "Литература",
   "Иностранный язык", "Биология", "География", "Труд",
@@ -325,7 +321,7 @@ function renderNoteText(text) {
 }
 
 // ============================================================
-// ЗАГРУЗКА И СОХРАНЕНИЕ OVERRIDES
+// OVERRIDES
 // ============================================================
 
 async function loadOverrides() {
@@ -374,7 +370,7 @@ async function deleteOverride(dateStr) {
 }
 
 // ============================================================
-// ЗАГРУЗКА И СОХРАНЕНИЕ ЗАМЕТОК
+// ЗАМЕТКИ ПО ДЗ
 // ============================================================
 
 async function loadNotes() {
@@ -500,7 +496,7 @@ function renderSummary(records) {
 }
 
 // ============================================================
-// БЛОК ЗАМЕТОК ПО ДЗ
+// БЛОК ЗАМЕТОК
 // ============================================================
 
 function renderNotesBox() {
@@ -518,11 +514,12 @@ function renderNotesBox() {
   } else {
     subjects.sort().forEach(subj => {
       const text = notes[subj];
+      const escSubj = escapeHtml(subj).replace(/'/g, "\\'");
       html += `<div class="note-item">
         <div class="note-subject">${escapeHtml(subj)}</div>
         <div class="note-text">${renderNoteText(text)}</div>
         <div class="note-actions">
-          <button class="note-btn" onclick="openNoteEditor('${escapeHtml(subj).replace(/'/g, "\\'")}')">✏️</button>
+          <button class="note-btn" onclick="openNoteEditor('${escSubj}')">✏️</button>
         </div>
       </div>`;
     });
@@ -615,7 +612,6 @@ const $noteText = document.getElementById("note-text");
 let editingNoteSubject = "";
 
 function fillSubjectOptions() {
-  // Соберём список предметов: базовые + те, что уже в заметках
   const s = new Set(ALL_SUBJECTS);
   Object.keys(notes).forEach(k => s.add(k));
   const sorted = Array.from(s).sort();
@@ -729,33 +725,38 @@ function buildTodayPlan(date) {
   return [...olymp, ...school, ...music, ...base];
 }
 
-// Извлекаем название предмета из задачи для сопоставления с заметками
+// Извлекаем название предмета из текста задачи
 function subjectFromTask(text) {
   let s = String(text || "");
   s = s.replace(/^\s*📚\s*Домашка:\s*/i, "");
   s = s.replace(/^\s*🏆\s*Олимпиада\s*\(\s*/i, "");
-  s = s.replace(/\s*\(\d+\s*мин\s*\)\s*$/, "");
-  s = s.replace(/\s*\(\s*\d+\s*мин\s*\)\s*/g, "");
+  s = s.replace(/\s*\(\d+\s*мин\s*\)\s*$/i, "");
+  s = s.replace(/\s*\(\s*\d+\s*мин\s*\)\s*/gi, "");
   s = s.replace(/^[🎵🎹📖📝🎻🏆🎒👗🧹🎮]\s*/u, "");
-  s = s.replace(/,.*$/, "");   // отрезаем ", 40 мин" и хвосты
+  s = s.replace(/,.*$/, "");
   return s.trim();
 }
 
+function normalizeSubject(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^\wа-яё0-9]/gi, "");
+}
+
 function getNoteForTask(planItem) {
-  // Не показываем заметки для бытовых задач и олимпиад
   if (planItem.section === "base") return null;
   if (planItem.text.includes("🏆")) return null;
   if (planItem.text.includes("Игра")) return null;
 
   const subj = subjectFromTask(planItem.text);
   if (!subj) return null;
-  if (notes[subj]) return notes[subj];
 
-  // Попробуем найти по вхождению (например, "Муз. литература" в notes)
-  for (const k of Object.keys(notes)) {
-    if (subj.toLowerCase().includes(k.toLowerCase()) ||
-        k.toLowerCase().includes(subj.toLowerCase())) {
-      return notes[k];
+  const subjNorm = normalizeSubject(subj);
+  if (!subjNorm) return null;
+
+  for (const key of Object.keys(notes)) {
+    if (normalizeSubject(key) === subjNorm) {
+      return notes[key];
     }
   }
   return null;
@@ -963,7 +964,6 @@ function buildPlanRow(planItem, record) {
   titleEl.textContent = planItem.text;
   content.appendChild(titleEl);
 
-  // Заметка по ДЗ (для любого предмета)
   const note = getNoteForTask(planItem);
   if (note) {
     const noteEl = document.createElement("div");
