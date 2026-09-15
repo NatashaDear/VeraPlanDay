@@ -22,9 +22,7 @@
     border-bottom: 1px solid #262626;
     position: sticky; top: 0; z-index: 10;
   }
-  .quiz-row {
-    display: flex; justify-content: center; margin-bottom: 10px;
-  }
+  .quiz-row { display: flex; justify-content: center; margin-bottom: 10px; }
   .quiz-btn {
     display: inline-block;
     background: linear-gradient(135deg, #ffcc00, #ff8800);
@@ -240,7 +238,7 @@ const MONTHS = ["января","февраля","марта","апреля","м�
                 "июля","августа","сентября","октября","ноября","декабря"];
 
 // ============================================================
-// OVERRIDES — расписание из облака
+// OVERRIDES + NOTES
 // ============================================================
 
 let overrides = {};
@@ -263,10 +261,6 @@ async function loadOverrides() {
     overrides = {};
   }
 }
-
-// ============================================================
-// ЗАМЕТКИ ПО ДЗ
-// ============================================================
 
 async function loadNotes() {
   try {
@@ -439,16 +433,22 @@ function buildTodayPlan(date) {
   return [...olymp, ...school, ...music, ...base];
 }
 
-// Находим заметку к задаче
+// Извлекаем название предмета из текста задачи
 function subjectFromTask(text) {
   let s = String(text || "");
   s = s.replace(/^\s*📚\s*Домашка:\s*/i, "");
   s = s.replace(/^\s*🏆\s*Олимпиада\s*\(\s*/i, "");
-  s = s.replace(/\s*\(\d+\s*мин\s*\)\s*$/, "");
-  s = s.replace(/\s*\(\s*\d+\s*мин\s*\)\s*/g, "");
+  s = s.replace(/\s*\(\d+\s*мин\s*\)\s*$/i, "");
+  s = s.replace(/\s*\(\s*\d+\s*мин\s*\)\s*/gi, "");
   s = s.replace(/^[🎵🎹📖📝🎻🏆🎒👗🧹🎮]\s*/u, "");
   s = s.replace(/,.*$/, "");
   return s.trim();
+}
+
+function normalizeSubject(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^\wа-яё0-9]/gi, "");
 }
 
 function getNoteForTask(planItem) {
@@ -458,12 +458,13 @@ function getNoteForTask(planItem) {
 
   const subj = subjectFromTask(planItem.text);
   if (!subj) return null;
-  if (notes[subj]) return notes[subj];
 
-  for (const k of Object.keys(notes)) {
-    if (subj.toLowerCase().includes(k.toLowerCase()) ||
-        k.toLowerCase().includes(subj.toLowerCase())) {
-      return notes[k];
+  const subjNorm = normalizeSubject(subj);
+  if (!subjNorm) return null;
+
+  for (const key of Object.keys(notes)) {
+    if (normalizeSubject(key) === subjNorm) {
+      return notes[key];
     }
   }
   return null;
@@ -629,7 +630,6 @@ function buildTaskRow(item, isLeftover = false) {
   const title = el("div", "task-title", item.text);
   body.appendChild(title);
 
-  // Заметка по ДЗ
   const note = getNoteForTask(item);
   if (note) {
     const noteEl = el("div", "task-note");
@@ -649,7 +649,6 @@ function buildTaskRow(item, isLeftover = false) {
   if (ico.textContent) row.appendChild(ico);
 
   row.addEventListener("click", (e) => {
-    // Если клик по ссылке в заметке — не переключаем задачу
     if (e.target.tagName === "A") return;
     handleTaskClick(item, key, row, isLeftover);
   });
@@ -713,7 +712,7 @@ function showPraise(text) {
 }
 
 // ============================================================
-// ФЛЕЙТА / ОРКЕСТР — ЗАПИСЬ
+// ФЛЕЙТА / ОРКЕСТР
 // ============================================================
 
 const $fluteModal = document.getElementById("flute-modal");
@@ -1006,7 +1005,7 @@ function closeCam() {
 }
 
 // ============================================================
-// PIN + ПАНЕЛЬ МАМЫ (внутри детского пульта)
+// PIN + ПАНЕЛЬ МАМЫ
 // ============================================================
 
 const $pinModal = document.getElementById("pin-modal");
@@ -1069,7 +1068,6 @@ loadState();
   render();
 })();
 
-// Автообновление раз в минуту
 setInterval(async () => {
   const today = new Date().toISOString().slice(0, 10);
   if (state.date !== today) {
@@ -1079,7 +1077,6 @@ setInterval(async () => {
   render();
 }, 60000);
 
-// Обновление при возврате в приложение
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
     await Promise.all([loadOverrides(), loadNotes()]);
