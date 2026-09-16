@@ -81,6 +81,7 @@
   .modal-timer { font-size: 56px; font-weight: bold; text-align: center; color: #fff; font-variant-numeric: tabular-nums; margin: 16px 0; letter-spacing: 2px; }
   .rec-dot { display: inline-block; width: 14px; height: 14px; background: #ff3333; border-radius: 50%; margin-right: 8px; animation: blink 1s infinite; }
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .rec-dot.paused { animation: none; background: #ffcc00; }
   .modal-btn { display: block; width: 100%; padding: 14px; background: #00ffb3; color: #0e0e0e; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; margin-top: 10px; cursor: pointer; font-family: inherit; }
   .modal-btn.alt { background: #333; color: #fff; }
   .modal-btn:disabled { opacity: 0.4; }
@@ -170,12 +171,13 @@ const STORAGE_BUCKET = "flute-recordings";
 const PHOTO_BUCKET = "photo-reports";
 
 const FLUTE_MINUTES = 40;
-const FRAGMENT_DURATION = 15;
-const FRAGMENT_INTERVAL = 5 * 60;
+const FRAGMENT_DURATION = 60;       // 60 секунд на фрагмент
+const FRAGMENT_INTERVAL = 5 * 60;   // старт фрагментов каждые 5 минут
 const TOTAL_FRAGMENTS = 8;
 const COOLDOWN_SECONDS = 8;
 const CORRECT_PIN = "1234";
 const STATE_KEY = "vera_state_v1";
+const PENDING_KEY = "vera_pending_v1";
 
 const SCHOOL_CHART = {
   0: ["Математика", "История", "Русский язык", "Литература", "Музыка*"],
@@ -279,7 +281,7 @@ async function loadNotes() {
 }
 
 // ============================================================
-// СОСТОЯНИЕ
+// СОСТОЯНИЕ + ОЧЕРЕДЬ
 // ============================================================
 
 let state = { date: "", done: {}, leftovers: [], lessonsSent: [] };
@@ -314,6 +316,80 @@ function loadState() {
 function saveState() {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
   catch (e) { console.error(e); }
+}
+
+function getPending() {
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]"); }
+  catch (e) { return []; }
+}
+
+function savePending(list) {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); }
+  catch (e) { console.error(e); }
+}
+
+function addPending(title) {
+  const list = getPending();
+  if (list.some(it => it.title === title)) return;
+  list.push({ title, ts: Date.now() });
+  savePending(list);
+}
+
+async function flushPending() {
+  const list = getPending();
+  if (!list.length) return 0;
+  const remaining = [];
+  let sent = 0;
+  for (const item of list) {
+    try {
+      const r = await fetch(TABLE_URL, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ title: item.title, is_done: true })
+      });
+      if (r.status >= 300) {
+        remaining.push(item);
+      } else {
+        console.log("✅ из очереди отправлено:", item.title);
+        sent++;
+      }
+    } catch (e) {
+      remaining.push(item);
+    }
+  }
+  savePending(remaining);
+  return sent;
+}
+
+async function sendToCloud(title) {
+  try {
+    const r = await fetch(TABLE_URL, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ title, is_done: true })
+    });
+    if (r.status >= 300) {
+      console.warn("⚠️ cloud:", r.status);
+      addPending(title);
+      return false;
+    }
+    console.log("✅ отправлено:", title);
+    return true;
+  } catch (e) {
+    console.error("cloud error:", e);
+    addPending(title);
+    return false;
+  }
 }
 
 // ============================================================
@@ -433,7 +509,6 @@ function buildTodayPlan(date) {
   return [...olymp, ...school, ...music, ...base];
 }
 
-// Извлекаем название предмета из текста задачи
 function subjectFromTask(text) {
   let s = String(text || "");
   s = s.replace(/^\s*📚\s*Домашка:\s*/i, "");
@@ -505,24 +580,8 @@ function buildOrientationText() {
 }
 
 // ============================================================
-// ОБЛАКО
+// ЗАГРУЗКА ФАЙЛОВ
 // ============================================================
-
-function sendToCloud(title) {
-  fetch(TABLE_URL, {
-    method: "POST",
-    headers: {
-      "apikey": SUPABASE_KEY,
-      "Authorization": "Bearer " + SUPABASE_KEY,
-      "Content-Type": "application/json",
-      "Prefer": "return=minimal"
-    },
-    body: JSON.stringify({ title, is_done: true })
-  }).then(r => {
-    if (r.status >= 300) console.warn("⚠️ cloud:", r.status);
-    else console.log("✅ отправлено:", title);
-  }).catch(e => console.error("cloud error:", e));
-}
 
 async function uploadBlob(bucket, path, blob, contentType) {
   const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
@@ -561,7 +620,7 @@ const $flash = document.getElementById("flash");
 function showFlash(msg) {
   $flash.textContent = msg;
   $flash.classList.remove("hidden");
-  setTimeout(() => $flash.classList.add("hidden"), 2000);
+  setTimeout(() => $flash.classList.add("hidden"), 2500);
 }
 
 function setStatus(msg) { $status.textContent = msg; }
@@ -692,7 +751,12 @@ function markDone(text, key, isLeftover = false) {
   if (isLeftover) state.leftovers = state.leftovers.filter(lo => lo.text !== key);
   saveState();
   const clean = text.replace(/^[🎒👗🧹📚🎵🏆🎹📝📖🎻]\s*/u, "");
-  sendToCloud(isLeftover ? "Хвост: " + clean : clean);
+  const title = isLeftover ? "Хвост: " + clean : clean;
+
+  sendToCloud(title).then(ok => {
+    if (!ok) showFlash("📡 Мама получит позже");
+  });
+
   render();
 }
 
@@ -712,7 +776,7 @@ function showPraise(text) {
 }
 
 // ============================================================
-// ФЛЕЙТА / ОРКЕСТР
+// ФЛЕЙТА / ОРКЕСТР — ЗАПИСЬ
 // ============================================================
 
 const $fluteModal = document.getElementById("flute-modal");
@@ -730,7 +794,8 @@ function openFluteModal(taskText, key) {
   fluteSession = {
     taskText, key, active: false, cancelled: false,
     fragments: [], sessionId: null, stream: null,
-    startTs: 0, running: false
+    startTs: 0, running: false,
+    paused: false, pauseReason: null
   };
 
   const base = taskText.replace(/^[🎵🎻]\s*/, "").split(" (")[0];
@@ -742,6 +807,7 @@ function openFluteModal(taskText, key) {
   $fluteCancel.disabled = false;
   $fluteCancel.textContent = "◀ Отмена";
   $recDot.style.display = "none";
+  $recDot.classList.remove("paused");
   $recLabel.textContent = "";
 
   $fluteModal.classList.remove("hidden");
@@ -755,11 +821,15 @@ $fluteStart.addEventListener("click", () => {
   fluteSession.sessionId = tsId();
   fluteSession.fragments = [];
   fluteSession.cancelled = false;
+  fluteSession.paused = false;
+  fluteSession.pauseReason = null;
 
   $fluteStart.disabled = true;
   $fluteCancel.textContent = "◀ Прервать";
   $recDot.style.display = "inline-block";
+  $recDot.classList.remove("paused");
   $recLabel.textContent = "● REC";
+  $recLabel.style.color = "#ff3333";
   $fluteHint.textContent = "Идёт запись. Пока не останавливай.";
 
   runFluteSession();
@@ -773,6 +843,89 @@ $fluteCancel.addEventListener("click", () => {
   fluteSession.cancelled = true;
 });
 
+// Создаём новый поток с микрофоном
+async function requestMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return stream;
+  } catch (e) {
+    console.error("getUserMedia:", e);
+    return null;
+  }
+}
+
+// Навешиваем обработчик на потерю трека (звонок, отбор фокуса)
+function watchStreamTracks(stream) {
+  if (!stream) return;
+  const tracks = stream.getAudioTracks();
+  tracks.forEach(track => {
+    track.addEventListener("ended", () => {
+      if (!fluteSession || !fluteSession.active || fluteSession.cancelled) return;
+      if (fluteSession.paused) return; // уже на паузе
+      console.log("📞 Микрофон отобран (вероятно звонок)");
+      fluteSession.paused = true;
+      fluteSession.pauseReason = "call";
+      $recDot.classList.add("paused");
+      $recLabel.style.color = "#ffcc00";
+      $recLabel.textContent = "📞 ПАУЗА";
+      $fluteHint.textContent = "📞 Похоже, звонок. После разговора запись продолжится сама.";
+    });
+  });
+}
+
+// Проверка, живой ли поток
+function streamIsAlive(stream) {
+  if (!stream) return false;
+  const tracks = stream.getAudioTracks();
+  if (!tracks.length) return false;
+  return tracks.every(t => t.readyState === "live");
+}
+
+// Продолжить запись после паузы
+async function resumeFromPause() {
+  if (!fluteSession || !fluteSession.active || fluteSession.cancelled) return;
+  if (!fluteSession.paused) return;
+
+  console.log("▶️ Пробую возобновить запись");
+  $fluteHint.textContent = "Возобновляю запись…";
+
+  const stream = await requestMic();
+  if (!stream) {
+    $fluteHint.textContent = "⚠️ Не удалось возобновить микрофон. Нажми маме.";
+    // Оставим паузу — Вера сама решит
+    return;
+  }
+
+  fluteSession.stream = stream;
+  fluteSession.paused = false;
+  fluteSession.pauseReason = null;
+  watchStreamTracks(stream);
+
+  $recDot.classList.remove("paused");
+  $recLabel.style.color = "#ff3333";
+  $recLabel.textContent = "● REC";
+  $fluteHint.textContent = "Идёт запись. Продолжай играть.";
+  console.log("✅ Запись возобновлена");
+}
+
+// Поставить на паузу (из-за visibilitychange)
+function pauseSession(reason) {
+  if (!fluteSession || !fluteSession.active || fluteSession.cancelled) return;
+  if (fluteSession.paused) return;
+  console.log("⏸ Пауза:", reason);
+  fluteSession.paused = true;
+  fluteSession.pauseReason = reason;
+  // Останавливаем треки, чтобы освободить микрофон
+  if (fluteSession.stream) {
+    fluteSession.stream.getTracks().forEach(t => t.stop());
+    fluteSession.stream = null;
+  }
+  $recDot.classList.add("paused");
+  $recLabel.style.color = "#ffcc00";
+  $recLabel.textContent = "📞 ПАУЗА";
+  $fluteHint.textContent = "📞 Похоже, звонок. После разговора запись продолжится сама.";
+}
+
 async function runFluteSession() {
   const session = fluteSession;
   if (!session) return;
@@ -783,15 +936,16 @@ async function runFluteSession() {
     return;
   }
 
-  try {
-    session.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (e) {
-    console.error(e);
+  const stream = await requestMic();
+  if (!stream) {
     $fluteHint.textContent = "⚠️ Микрофон недоступен. Скажи маме.";
     $recDot.style.display = "none";
     $recLabel.textContent = "";
     return;
   }
+
+  session.stream = stream;
+  watchStreamTracks(stream);
 
   const totalSeconds = FLUTE_MINUTES * 60;
   let nextFragmentTime = 0;
@@ -805,14 +959,33 @@ async function runFluteSession() {
     const remain = Math.max(0, totalSeconds - elapsed);
     $fluteTimer.textContent = fmtTime(remain);
 
+    // На паузе — просто ждём (таймер идёт по реальному времени)
+    if (session.paused) {
+      await sleep(500);
+      continue;
+    }
+
+    // Пора записывать следующий фрагмент
     if (fragmentIdx < TOTAL_FRAGMENTS && elapsed >= nextFragmentTime) {
+      // Проверим, что поток жив
+      if (!streamIsAlive(session.stream)) {
+        // Поток мёртв — уходим в паузу, автоматически возобновим когда вернётся
+        pauseSession("stream_dead");
+        continue;
+      }
       try {
         const blob = await recordSeconds(session.stream, FRAGMENT_DURATION);
         if (blob && blob.size > 0) {
           session.fragments.push({ idx: fragmentIdx + 1, blob });
           console.log(`✅ Фрагмент ${fragmentIdx + 1} записан (${Math.round(blob.size/1024)} КБ)`);
         }
-      } catch (e) { console.error("Ошибка записи фрагмента:", e); }
+      } catch (e) {
+        console.error("Ошибка записи фрагмента:", e);
+        // Возможно, звонок прямо сейчас
+        if (!streamIsAlive(session.stream)) {
+          pauseSession("record_error_dead_stream");
+        }
+      }
       fragmentIdx++;
       nextFragmentTime = fragmentIdx * FRAGMENT_INTERVAL;
       continue;
@@ -827,7 +1000,9 @@ async function runFluteSession() {
     session.stream = null;
   }
   $recDot.style.display = "none";
+  $recDot.classList.remove("paused");
   $recLabel.textContent = "";
+  $recLabel.style.color = "#ff3333";
 
   $fluteHint.textContent = "Отправляю маме…";
   await uploadAllFragments(session);
@@ -882,11 +1057,14 @@ async function uploadAllFragments(session) {
     ? `${base}: прервано, ${uploaded} фрагментов [sid=${sid}]`
     : `${base}: ${FLUTE_MINUTES} мин, ${uploaded} фрагментов [sid=${sid}]`;
   console.log("📤 Отправляю в облако:", title);
-  sendToCloud(title);
+
   if (!session.cancelled && uploaded > 0) {
     state.done[session.key] = new Date().toISOString();
     saveState();
   }
+
+  const ok = await sendToCloud(title);
+  if (!ok) showFlash("📡 Мама получит позже");
 }
 
 function closeFlute() {
@@ -985,9 +1163,13 @@ async function finishCam() {
   const clean = session.taskText.replace(/^[🎒👗🧹]\s*/u, "");
   const title = `Фотоотчет: ${clean} [sid=${session.sessionId}]`;
   console.log("📤 Отправляю:", title);
-  sendToCloud(title);
+
   state.done[session.key] = new Date().toISOString();
   saveState();
+
+  const ok = await sendToCloud(title);
+  if (!ok) showFlash("📡 Мама получит позже");
+
   closeCam();
   render();
   setStatus("📸 Отчёт отправлен маме!");
@@ -1050,7 +1232,9 @@ document.getElementById("adm-clear-left").addEventListener("click", () => {
 document.getElementById("adm-refresh").addEventListener("click", async () => {
   await Promise.all([loadOverrides(), loadNotes()]);
   render();
-  showFlash("Расписание обновлено");
+  const sent = await flushPending();
+  if (sent > 0) showFlash(`Отправлено из очереди: ${sent}`);
+  else showFlash("Расписание обновлено");
 });
 
 document.getElementById("adm-close").addEventListener("click", () => {
@@ -1058,12 +1242,44 @@ document.getElementById("adm-close").addEventListener("click", () => {
 });
 
 // ============================================================
-// СТАРТ + АВТООБНОВЛЕНИЕ
+// ОБРАБОТКА СКРЫТИЯ / ВОЗВРАТА ВКЛАДКИ
+// (звонок, свёрнутое приложение, переключение вкладок)
+// ============================================================
+
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) {
+    // Вкладка ушла на задний план — если идёт запись, ставим паузу
+    if (fluteSession && fluteSession.active && !fluteSession.cancelled) {
+      pauseSession("tab_hidden");
+    }
+    return;
+  }
+
+  // Вкладка вернулась
+  // 1. Если запись на паузе — пробуем возобновить
+  if (fluteSession && fluteSession.active && fluteSession.paused && !fluteSession.cancelled) {
+    await resumeFromPause();
+  }
+
+  // 2. Обновляем расписание и очередь
+  await Promise.all([loadOverrides(), loadNotes()]);
+  render();
+  await flushPending();
+});
+
+// ============================================================
+// СТАРТ + АВТООБНОВЛЕНИЕ + ДОСЫЛ ОЧЕРЕДИ
 // ============================================================
 
 loadState();
 
 (async function init() {
+  const sent = await flushPending();
+  if (sent > 0) {
+    console.log(`📤 Дослано из очереди при запуске: ${sent}`);
+    showFlash(`📤 Маме доставлено: ${sent}`);
+  }
+
   await Promise.all([loadOverrides(), loadNotes()]);
   render();
 })();
@@ -1075,14 +1291,8 @@ setInterval(async () => {
   }
   await Promise.all([loadOverrides(), loadNotes()]);
   render();
+  await flushPending();
 }, 60000);
-
-document.addEventListener("visibilitychange", async () => {
-  if (!document.hidden) {
-    await Promise.all([loadOverrides(), loadNotes()]);
-    render();
-  }
-});
 </script>
 </body>
 </html>
